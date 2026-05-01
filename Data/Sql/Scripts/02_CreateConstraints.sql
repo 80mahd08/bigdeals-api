@@ -66,3 +66,40 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'CHK_AttributsCategorie_Ty
     ALTER TABLE AttributsCategorie ADD CONSTRAINT CHK_AttributsCategorie_TypeDonnee CHECK (TypeDonnee IN (1, 2, 3, 4, 5));
 GO
 
+-- --- ANNONCE CONSTRAINTS ---
+
+-- Annonces -> Utilisateurs
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Annonces_Utilisateurs')
+    ALTER TABLE Annonces ADD CONSTRAINT FK_Annonces_Utilisateurs FOREIGN KEY (IdUtilisateur) REFERENCES Utilisateurs(IdUtilisateur);
+
+-- Annonces -> Categories
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Annonces_Categories')
+    ALTER TABLE Annonces ADD CONSTRAINT FK_Annonces_Categories FOREIGN KEY (IdCategorie) REFERENCES Categories(IdCategorie);
+
+-- ValeursAttributAnnonce -> Annonces
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ValeursAttributAnnonce_Annonces')
+    ALTER TABLE ValeursAttributAnnonce ADD CONSTRAINT FK_ValeursAttributAnnonce_Annonces FOREIGN KEY (IdAnnonce) REFERENCES Annonces(IdAnnonce);
+
+-- ValeursAttributAnnonce -> AttributsCategorie
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ValeursAttributAnnonce_AttributsCategorie')
+    ALTER TABLE ValeursAttributAnnonce ADD CONSTRAINT FK_ValeursAttributAnnonce_AttributsCategorie FOREIGN KEY (IdAttributCategorie) REFERENCES AttributsCategorie(IdAttributCategorie);
+
+-- ValeursAttributAnnonce -> OptionsAttributCategorie
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ValeursAttributAnnonce_OptionsAttributCategorie')
+    ALTER TABLE ValeursAttributAnnonce ADD CONSTRAINT FK_ValeursAttributAnnonce_OptionsAttributCategorie FOREIGN KEY (IdOptionAttributCategorie) REFERENCES OptionsAttributCategorie(IdOptionAttributCategorie);
+
+-- ImagesAnnonce -> Annonces
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ImagesAnnonce_Annonces')
+    ALTER TABLE ImagesAnnonce ADD CONSTRAINT FK_ImagesAnnonce_Annonces FOREIGN KEY (IdAnnonce) REFERENCES Annonces(IdAnnonce);
+
+-- CHECKs
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'CHK_Annonces_Prix' AND type = 'C')
+    ALTER TABLE Annonces ADD CONSTRAINT CHK_Annonces_Prix CHECK (Prix >= 0);
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'CHK_Annonces_Statut' AND type = 'C')
+    ALTER TABLE Annonces ADD CONSTRAINT CHK_Annonces_Statut CHECK (Statut IN (1, 2, 3, 4, 5));
+
+-- UNIQUE Dynamic Values
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_ValeursAttributAnnonce_Annonce_Attribut' AND type = 'UQ')
+    ALTER TABLE ValeursAttributAnnonce ADD CONSTRAINT UQ_ValeursAttributAnnonce_Annonce_Attribut UNIQUE (IdAnnonce, IdAttributCategorie);
+GO

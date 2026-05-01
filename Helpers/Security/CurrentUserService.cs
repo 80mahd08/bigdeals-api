@@ -23,4 +23,15 @@ public class CurrentUserService : ICurrentUserService
 
         throw new UnauthorizedException("User ID not found in token.");
     }
+
+    public long? Id
+    {
+        get
+        {
+            var claim = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier);
+            return (claim != null && long.TryParse(claim.Value, out var userId)) ? userId : null;
+        }
+    }
+
+    public string? Role => _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value;
 }

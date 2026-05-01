@@ -30,3 +30,12 @@ public enum TypeDonneeAttribut
     BOOLEAN = 4,
     LISTE = 5
 }
+
+public enum StatutAnnonce
+{
+    BROUILLON = 1,
+    PUBLIEE = 2,
+    SUSPENDUE = 3,
+    EXPIREE = 4,
+    SUPPRIMEE = 5
+}

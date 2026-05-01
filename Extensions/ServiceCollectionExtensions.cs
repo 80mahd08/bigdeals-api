@@ -13,6 +13,9 @@ using api.Services.Users;
 using api.Interfaces.Categories;
 using api.Repositories.Categories;
 using api.Services.Categories;
+using api.Interfaces.Annonces;
+using api.Repositories.Annonces;
+using api.Services.Annonces;
 using api.Services.Storage;
 
 namespace api.Extensions;
@@ -35,12 +38,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IDemandeAnnonceurRepository, DemandeAnnonceurRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<IAnnonceRepository, AnnonceRepository>();
 
         // Services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IDemandeAnnonceurService, DemandeAnnonceurService>();
         services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IAnnonceService, AnnonceService>();
         services.AddScoped<ILocalFileStorageService, LocalFileStorageService>();
 
         return services;

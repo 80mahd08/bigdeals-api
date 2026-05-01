@@ -1,6 +1,18 @@
 {
   "Files": [
     {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\1d532aaea31742b49831400161d9a5a9.jpg",
+      "PackagePath": "staticwebassets\\uploads\\annonces\\1d532aaea31742b49831400161d9a5a9.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\8663e4b94bd4425ba3155d9236fa844f.jpg",
+      "PackagePath": "staticwebassets\\uploads\\annonces\\8663e4b94bd4425ba3155d9236fa844f.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\cebcc9442a314d3c8a7f63fd18b47b80.png",
+      "PackagePath": "staticwebassets\\uploads\\annonces\\cebcc9442a314d3c8a7f63fd18b47b80.png"
+    },
+    {
       "Id": "E:\\my work\\api\\wwwroot\\uploads\\profiles\\a294ac022dcd4f44b0d09adf737715b7.png",
       "PackagePath": "staticwebassets\\uploads\\profiles\\a294ac022dcd4f44b0d09adf737715b7.png"
     },

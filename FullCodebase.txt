@@ -54,109 +54,6 @@
 }
 
 
---- FILE: B0_Backend_Audit_Report.md ---
-
-# B0 Backend Audit Report
-
-## 1. Project Build Status
-- **dotnet restore result**: Succeeded for `api` (empty template). `api-old` (main codebase) was not built due to workspace restrictions, but inspection shows high-quality code.
-- **dotnet build result**: Succeeded for `api` (0 Errors, 0 Warnings).
-- **Notes**: The primary codebase resides in `api-old`, while the `api` folder currently contains a default ASP.NET Core template. This report is based on the inspection of `api-old`.
-
-## 2. Project Structure
-The project follows a clean repository pattern architecture:
-- **Controllers**: API Endpoints (AuthController, AnnoncesController, CategoriesController, AdvertiserRequestsController).
-- **Models / Entities**: French-named entities reflecting the database schema (Utilisateur, Annonce, Categorie, etc.).
-- **DTOs**: Data Transfer Objects for requests and responses, grouped by module.
-- **Services**: Business logic layer (AuthService, AnnonceService, CategoryService).
-- **Repositories**: Data access layer using raw ADO.NET and SQL commands.
-- **Interfaces**: Abstractions for services and repositories.
-- **Data**: SQL scripts, Dapper mappers (prepared but ADO.NET used), and connection factories.
-- **SQL scripts**: Comprehensive set of scripts for database creation, tables, constraints, and seeding.
-- **Middleware**: Global exception handling.
-- **Helpers**: JWT settings, enum helpers, and SQL parameter helpers.
-
-## 3. Existing Modules Matrix
-
-| Module | Controller | Service | Repository | DTOs | Model | SQL | Status |
-|---|---|---|---|---|---|---|---|
-| Auth | Yes | Yes | Yes | Yes | Yes | Yes | Complete |
-| Users/Utilisateurs | No | Yes | Yes | Yes | Yes | Yes | Missing Controller |
-| Categories | Yes | Yes | Yes | Yes | Yes | Yes | Complete |
-| AttributsCategorie | No | No* | No* | Yes | Yes | Yes | Managed by CategoryService |
-| OptionsAttributCategorie | No | No* | No* | Yes | Yes | Yes | Managed by CategoryService |
-| Annonces/Ads | Yes | Yes | Yes | Yes | Yes | Yes | Complete |
-| ValeursAttributAnnonce | No | No* | No* | Yes | Yes | Yes | Managed by AnnonceService |
-| ImagesAnnonce | No | No* | No* | Yes | Yes | Yes | Managed by AnnonceService |
-| DemandesAnnonceur | Yes | Yes | Yes | Yes | Yes | Yes | Complete |
-| Favoris | No | No | No | No | Yes | Yes | Missing Logic |
-| AbonnementAnnonceur | No | No | No | No | Yes | Yes | Missing Logic |
-| ContactAnnonceur | No | No | No | No | Yes | Yes | Missing Logic |
-| Panier | No | No | No | No | Yes | Yes | Missing Logic |
-| Commandes | No | No | No | No | Yes | Yes | Missing Logic |
-| Paiements | No | No | No | No | Yes | Yes | Missing Logic |
-| Transactions | No | No | No | No | Yes | Yes | Missing Logic |
-| Avis/Ratings | No | No | No | No | Yes | Yes | Missing Logic |
-| Signalements/Reclamations | No | No | No | No | Yes | Yes | Missing Logic |
-| Admin dashboard | Yes | Yes | Yes | Yes | Yes | Yes | Partial (Advertiser Requests) |
-
-*\*Logic is embedded within the parent module's Service/Repository.*
-
-## 4. Authentication and Authorization Findings
-- **Register/Login**: Implemented in `AuthController` and `AuthService`.
-- **JWT**: Fully functional. Contains `idUtilisateur` and `role` claims.
-- **Roles**: `CLIENT` (Utilisateur), `ANNONCEUR`, `ADMIN` (Administrateur) are defined in `RoleUtilisateur` enum.
-- **Authorization**: `[Authorize]` and policy-based authorization (`AnnonceurOnly`, `AdminOnly`) are correctly applied in controllers.
-- **Security**:
-  - Password hashing uses PBKDF2 with SHA256 (100,000 iterations).
-  - Public registration defaults to the `Utilisateur` role; no way to self-assign Admin or Annonceur roles.
-  - Blocked users are prevented from logging in.
-  - DTOs are protected against overposting (e.g., `RegisterRequestDto` does not include a role field).
-
-## 5. SQL and Database Findings
-- **Scripts**: Very complete and idempotent.
-- **Tables**: Match the class diagram requirements perfectly.
-- **Seed Data**: Comprehensive seeding for Categories, Attributes, and Options.
-- **Constraints**: Proper foreign keys, unique constraints, and check constraints for enums.
-- **Missing**: No stored procedures (logic is in C# repositories), which aligns with the current direction.
-
-## 6. Category System Findings
-- **Schema Support**: Full support for predefined dynamic category schemas.
-- **Attributes**: Supports multiple types (Texte, Nombre, Date, Booleen, Liste).
-- **Validation**: `CategorySchemaValidator` implements strict validation of submitted values against the category schema.
-
-## 7. Annonce System Findings
-- **Dynamic Values**: Supported via `ValeursAttributAnnonce` table and associated repository logic.
-- **Ownership**: `IsOwner` checks are implemented for updates, deletions, and image management.
-- **Images**: Supports multiple images (max 8) with ordering and "main image" designation.
-- **Moderation**: SQL schema supports status changes, but Admin CRUD for annonces is not yet implemented in controllers.
-
-## 8. Naming Conflicts
-- **Models**: Predominantly French (`Utilisateur`, `Annonce`, `Categorie`).
-- **Services/Repos**: Predominantly English (`CategoryService`, `AnnonceService`).
-- **Ads vs Annonces**: `Annonces` is the dominant term.
-- **Users vs Utilisateurs**: Model is `Utilisateur`, but folders/services use `Users`.
-- **Recommendation**: Standardize on English for Services/Repositories/Controllers and keep French for Models/SQL tables to match the existing codebase.
-
-## 9. Security Risks Found
-- **File Upload**: Robust validation (extension, MIME type, and magic bytes signature).
-- **SQL Injection**: Safe; all queries use parameterized SQL via ADO.NET.
-- **Ownership**: Properly enforced in `AnnonceService`.
-- **Overposting**: DTOs are clean.
-- **Risk**: Missing ownership checks on modules not yet implemented (Favoris, Panier, etc.).
-
-## 10. Missing Pieces for Next Phases
-- **B1 SQL**: Complete (already exists).
-- **B2 Enums**: Complete (already exists).
-- **B3 Auth**: Complete (already exists).
-- **B4 Category Schema**: Complete (already exists).
-- **B5 Annonces**: Mostly complete (needs final review).
-- **B6 Other Modules**: Missing logic for Favoris, AbonnementAnnonceur, ContactAnnonceur, Panier, Commande, Paiement, Avis, Signalement.
-
-## 11. Recommended Next Step
-Proceed to **Phase B1/B2/B3 Verification** (SQL deployment and Auth testing) to ensure the existing code works correctly in the current environment, then move to **Phase B6** to implement missing modules logic.
-
-
 --- FILE: Common\ApiResponse.cs ---
 
 using System.Collections.Generic;
@@ -197,6 +94,52 @@ public class PagedResponse<T>
         TotalCount = totalCount;
         PageNumber = pageNumber;
         PageSize = pageSize;
+    }
+}
+
+
+--- FILE: Controllers\AdminAnnoncesController.cs ---
+
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using api.Common;
+using api.Dtos.Annonces;
+using api.Interfaces.Annonces;
+
+namespace api.Controllers;
+
+[Route("api/admin/annonces")]
+[ApiController]
+[Authorize(Roles = "ADMIN")]
+public class AdminAnnoncesController : ControllerBase
+{
+    private readonly IAnnonceService _service;
+
+    public AdminAnnoncesController(IAnnonceService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 12)
+    {
+        var result = await _service.GetAdminAnnoncesAsync(pageNumber, pageSize);
+        return Ok(ApiResponse<PagedResponse<AnnonceDto>>.Ok(result));
+    }
+
+    [HttpPut("{id}/suspend")]
+    public async Task<ActionResult<ApiResponse<bool>>> Suspend(long id)
+    {
+        await _service.SuspendAnnonceAsync(id);
+        return Ok(ApiResponse<bool>.Ok(true, "Annonce suspended successfully."));
+    }
+
+    [HttpPut("{id}/restore")]
+    public async Task<ActionResult<ApiResponse<bool>>> Restore(long id)
+    {
+        await _service.RestoreAnnonceAsync(id);
+        return Ok(ApiResponse<bool>.Ok(true, "Annonce restored successfully."));
     }
 }
 
@@ -267,6 +210,91 @@ public class AdminDemandesAnnonceurController : ControllerBase
 }
 
 
+--- FILE: Controllers\AnnoncesController.cs ---
+
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using api.Common;
+using api.Dtos.Annonces;
+using api.Interfaces.Annonces;
+using api.Helpers.Security;
+using api.Models.Enums;
+using api.Exceptions;
+
+namespace api.Controllers;
+
+[Route("api/annonces")]
+[ApiController]
+public class AnnoncesController : ControllerBase
+{
+    private readonly IAnnonceService _service;
+    private readonly ICurrentUserService _currentUserService;
+
+    public AnnoncesController(IAnnonceService service, ICurrentUserService currentUserService)
+    {
+        _service = service;
+        _currentUserService = currentUserService;
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetPublicList([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 12)
+    {
+        if (pageSize > 50) pageSize = 50;
+        var result = await _service.GetPublicAnnoncesAsync(pageNumber, pageSize);
+        return Ok(ApiResponse<PagedResponse<AnnonceDto>>.Ok(result));
+    }
+
+    [HttpGet("{id}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<AnnonceDetailsDto>>> GetById(long id)
+    {
+        var result = await _service.GetAnnonceByIdAsync(id);
+        
+        if (result.Statut != StatutAnnonce.PUBLIEE.ToString())
+        {
+            long? currentUserId = _currentUserService.Id;
+            bool isAdmin = _currentUserService.Role == RoleUtilisateur.ADMIN.ToString();
+            bool isOwner = currentUserId.HasValue && result.IdUtilisateur == currentUserId.Value;
+
+            if (!isOwner && !isAdmin)
+                throw new NotFoundException("Annonce not found.");
+        }
+
+        return Ok(ApiResponse<AnnonceDetailsDto>.Ok(result));
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "ANNONCEUR")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<long>>> Create([FromForm] CreateAnnonceFormDto dto)
+    {
+        var currentUserId = _currentUserService.GetUserId();
+        var id = await _service.CreateAnnonceAsync(dto, currentUserId);
+        return Ok(ApiResponse<long>.Ok(id, "Annonce created successfully."));
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Roles = "ANNONCEUR")]
+    public async Task<ActionResult<ApiResponse<bool>>> Update(long id, UpdateAnnonceDto dto)
+    {
+        var currentUserId = _currentUserService.GetUserId();
+        await _service.UpdateAnnonceAsync(id, dto, currentUserId);
+        return Ok(ApiResponse<bool>.Ok(true, "Annonce updated successfully."));
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "ANNONCEUR")]
+    public async Task<ActionResult<ApiResponse<bool>>> Delete(long id)
+    {
+        var currentUserId = _currentUserService.GetUserId();
+        await _service.DeleteAnnonceAsync(id, currentUserId);
+        return Ok(ApiResponse<bool>.Ok(true, "Annonce deleted successfully."));
+    }
+}
+
+
 --- FILE: Controllers\AuthController.cs ---
 
 using System.Threading.Tasks;
@@ -303,6 +331,60 @@ public class AuthController : ControllerBase
     {
         var response = await _authService.LoginAsync(request);
         return Ok(ApiResponse<AuthResponseDto>.Ok(response, "Login successful."));
+    }
+}
+
+
+--- FILE: Controllers\CategoriesController.cs ---
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using api.Common;
+using api.Dtos.Categories;
+using api.Interfaces.Categories;
+
+namespace api.Controllers;
+
+[Route("api/categories")]
+[ApiController]
+[AllowAnonymous]
+public class CategoriesController : ControllerBase
+{
+    private readonly ICategoryService _service;
+
+    public CategoriesController(ICategoryService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<CategoryDto>>>> GetAll()
+    {
+        var result = await _service.GetAllCategoriesAsync();
+        return Ok(ApiResponse<IReadOnlyList<CategoryDto>>.Ok(result));
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<CategoryDetailsDto>>> GetById(int id)
+    {
+        var result = await _service.GetCategoryByIdAsync(id);
+        return Ok(ApiResponse<CategoryDetailsDto>.Ok(result));
+    }
+
+    [HttpGet("{id}/attributes")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AttributeCategoryDto>>>> GetAttributes(int id)
+    {
+        var result = await _service.GetCategoryAttributesAsync(id);
+        return Ok(ApiResponse<IReadOnlyList<AttributeCategoryDto>>.Ok(result));
+    }
+
+    [HttpGet("{id}/schema")]
+    public async Task<ActionResult<ApiResponse<CategorySchemaDto>>> GetSchema(int id)
+    {
+        var result = await _service.GetCategorySchemaAsync(id);
+        return Ok(ApiResponse<CategorySchemaDto>.Ok(result));
     }
 }
 
@@ -365,6 +447,54 @@ public class DemandesAnnonceurController : ControllerBase
         return File(content, contentType, fileName);
     }
 
+}
+
+
+--- FILE: Controllers\UserAnnoncesController.cs ---
+
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using api.Common;
+using api.Dtos.Annonces;
+using api.Interfaces.Annonces;
+using api.Helpers.Security;
+
+namespace api.Controllers;
+
+[Route("api/users/me/annonces")]
+[ApiController]
+[Authorize(Roles = "ANNONCEUR")]
+public class UserAnnoncesController : ControllerBase
+{
+    private readonly IAnnonceService _service;
+    private readonly ICurrentUserService _currentUserService;
+
+    public UserAnnoncesController(IAnnonceService service, ICurrentUserService currentUserService)
+    {
+        _service = service;
+        _currentUserService = currentUserService;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetMyAnnonces([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 12)
+    {
+        var currentUserId = _currentUserService.GetUserId();
+        var result = await _service.GetUserAnnoncesAsync(currentUserId, pageNumber, pageSize);
+        return Ok(ApiResponse<PagedResponse<AnnonceDto>>.Ok(result));
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<AnnonceDetailsDto>>> GetMyAnnonceById(long id)
+    {
+        var currentUserId = _currentUserService.GetUserId();
+        var result = await _service.GetAnnonceByIdAsync(id, currentUserId);
+        
+        if (result.IdUtilisateur != currentUserId)
+            return Forbid();
+
+        return Ok(ApiResponse<AnnonceDetailsDto>.Ok(result));
+    }
 }
 
 
@@ -466,6 +596,193 @@ public class SqlConnectionFactory : ISqlConnectionFactory
 }
 
 
+--- FILE: Dtos\Annonces\AnnonceAttributeValueDto.cs ---
+
+using System;
+
+namespace api.Dtos.Annonces;
+
+public class AnnonceAttributeValueDto
+{
+    public int IdAttributCategorie { get; set; }
+    public int? IdOptionAttributCategorie { get; set; }
+    public string? ValeurTexte { get; set; }
+    public decimal? ValeurNombre { get; set; }
+    public DateTime? ValeurDate { get; set; }
+    public bool? ValeurBooleen { get; set; }
+}
+
+
+--- FILE: Dtos\Annonces\AnnonceDetailsDto.cs ---
+
+using System;
+using System.Collections.Generic;
+
+namespace api.Dtos.Annonces;
+
+public class AnnonceDetailsDto
+{
+    public long IdAnnonce { get; set; }
+    public long IdUtilisateur { get; set; }
+    public string AnnonceurNom { get; set; } = string.Empty;
+    public int IdCategorie { get; set; }
+    public string CategorieNom { get; set; } = string.Empty;
+    public string Titre { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public decimal Prix { get; set; }
+    public string? Localisation { get; set; }
+    public string Statut { get; set; } = string.Empty;
+    public DateTime DateCreation { get; set; }
+    public DateTime? DatePublication { get; set; }
+    public List<AnnonceAttributeValueDetailsDto> Attributs { get; set; } = new();
+    public List<ImageAnnonceDto> Images { get; set; } = new();
+}
+
+public class AnnonceAttributeValueDetailsDto
+{
+    public int IdAttributCategorie { get; set; }
+    public string Nom { get; set; } = string.Empty;
+    public string Valeur { get; set; } = string.Empty;
+}
+
+
+--- FILE: Dtos\Annonces\AnnonceDto.cs ---
+
+using System;
+
+namespace api.Dtos.Annonces;
+
+public class AnnonceDto
+{
+    public long IdAnnonce { get; set; }
+    public long IdUtilisateur { get; set; }
+    public int IdCategorie { get; set; }
+    public string CategorieNom { get; set; } = string.Empty;
+    public string Titre { get; set; } = string.Empty;
+    public decimal Prix { get; set; }
+    public string? Localisation { get; set; }
+    public string Statut { get; set; } = string.Empty;
+    public DateTime DateCreation { get; set; }
+    public string? MainImageUrl { get; set; }
+}
+
+
+--- FILE: Dtos\Annonces\CreateAnnonceDto.cs ---
+
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace api.Dtos.Annonces;
+
+public class CreateAnnonceDto
+{
+    [Required]
+    public int IdCategorie { get; set; }
+    
+    [Required]
+    [MaxLength(150)]
+    public string Titre { get; set; } = string.Empty;
+    
+    [Required]
+    [MaxLength(2000)]
+    public string Description { get; set; } = string.Empty;
+    
+    [Required]
+    [Range(0, double.MaxValue)]
+    public decimal Prix { get; set; }
+    
+    [MaxLength(255)]
+    public string? Localisation { get; set; }
+    
+    public List<AnnonceAttributeValueDto> Valeurs { get; set; } = new();
+}
+
+
+--- FILE: Dtos\Annonces\CreateAnnonceFormDto.cs ---
+
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
+
+namespace api.Dtos.Annonces;
+
+public class CreateAnnonceFormDto
+{
+    [Required]
+    public int IdCategorie { get; set; }
+    
+    [Required]
+    [MaxLength(150)]
+    public string Titre { get; set; } = string.Empty;
+    
+    [Required]
+    [MaxLength(2000)]
+    public string Description { get; set; } = string.Empty;
+    
+    [Required]
+    [Range(0, double.MaxValue)]
+    public decimal Prix { get; set; }
+    
+    [Required]
+    [MaxLength(255)]
+    public string Localisation { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// JSON string(s) containing the list of AnnonceAttributeValueDto.
+    /// Can be a single JSON array string or multiple JSON object strings.
+    /// </summary>
+    [Required]
+    public List<string> ValeursJson { get; set; } = new();
+    
+    [Required]
+    public List<IFormFile> Images { get; set; } = new();
+}
+
+
+--- FILE: Dtos\Annonces\ImageAnnonceDto.cs ---
+
+using System;
+
+namespace api.Dtos.Annonces;
+
+public class ImageAnnonceDto
+{
+    public long IdImageAnnonce { get; set; }
+    public string Url { get; set; } = string.Empty;
+    public int OrdreAffichage { get; set; }
+    public bool EstPrincipale { get; set; }
+}
+
+
+--- FILE: Dtos\Annonces\UpdateAnnonceDto.cs ---
+
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace api.Dtos.Annonces;
+
+public class UpdateAnnonceDto
+{
+    [Required]
+    [MaxLength(150)]
+    public string Titre { get; set; } = string.Empty;
+    
+    [Required]
+    [MaxLength(2000)]
+    public string Description { get; set; } = string.Empty;
+    
+    [Required]
+    [Range(0, double.MaxValue)]
+    public decimal Prix { get; set; }
+    
+    [Required]
+    [MaxLength(255)]
+    public string Localisation { get; set; } = string.Empty;
+    
+    public List<AnnonceAttributeValueDto> Valeurs { get; set; } = new();
+}
+
+
 --- FILE: Dtos\Auth\AuthDtos.cs ---
 
 using System.ComponentModel.DataAnnotations;
@@ -501,6 +818,83 @@ public class AuthResponseDto
 {
     public string Token { get; set; } = string.Empty;
     public api.Dtos.Users.UserProfileDto User { get; set; } = new();
+}
+
+
+--- FILE: Dtos\Categories\AttributeCategoryDto.cs ---
+
+using System.Collections.Generic;
+
+namespace api.Dtos.Categories;
+
+public class AttributeCategoryDto
+{
+    public int IdAttributCategorie { get; set; }
+    public string Nom { get; set; } = string.Empty;
+    public string TypeDonnee { get; set; } = string.Empty;
+    public bool Obligatoire { get; set; }
+    public bool Filtrable { get; set; }
+    public int OrdreAffichage { get; set; }
+    public List<OptionAttributeCategoryDto> Options { get; set; } = new();
+}
+
+
+--- FILE: Dtos\Categories\CategoryDetailsDto.cs ---
+
+using System;
+
+namespace api.Dtos.Categories;
+
+public class CategoryDetailsDto
+{
+    public int IdCategorie { get; set; }
+    public string Nom { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? IconKey { get; set; }
+    public int OrdreAffichage { get; set; }
+    public DateTime DateCreation { get; set; }
+}
+
+
+--- FILE: Dtos\Categories\CategoryDto.cs ---
+
+namespace api.Dtos.Categories;
+
+public class CategoryDto
+{
+    public int IdCategorie { get; set; }
+    public string Nom { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? IconKey { get; set; }
+    public int OrdreAffichage { get; set; }
+}
+
+
+--- FILE: Dtos\Categories\CategorySchemaDto.cs ---
+
+using System.Collections.Generic;
+
+namespace api.Dtos.Categories;
+
+public class CategorySchemaDto
+{
+    public int IdCategorie { get; set; }
+    public string Nom { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? IconKey { get; set; }
+    public List<AttributeCategoryDto> Attributs { get; set; } = new();
+}
+
+
+--- FILE: Dtos\Categories\OptionAttributeCategoryDto.cs ---
+
+namespace api.Dtos.Categories;
+
+public class OptionAttributeCategoryDto
+{
+    public int IdOptionAttributCategorie { get; set; }
+    public string Valeur { get; set; } = string.Empty;
+    public int OrdreAffichage { get; set; }
 }
 
 
@@ -710,6 +1104,12 @@ using api.Repositories.Users;
 using api.Services.Auth;
 using api.Services.DemandesAnnonceur;
 using api.Services.Users;
+using api.Interfaces.Categories;
+using api.Repositories.Categories;
+using api.Services.Categories;
+using api.Interfaces.Annonces;
+using api.Repositories.Annonces;
+using api.Services.Annonces;
 using api.Services.Storage;
 
 namespace api.Extensions;
@@ -731,85 +1131,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IDemandeAnnonceurRepository, DemandeAnnonceurRepository>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<IAnnonceRepository, AnnonceRepository>();
 
         // Services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IDemandeAnnonceurService, DemandeAnnonceurService>();
+        services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IAnnonceService, AnnonceService>();
         services.AddScoped<ILocalFileStorageService, LocalFileStorageService>();
 
         return services;
     }
 }
-
-
---- FILE: Fresh_Backend_Core_Report.md ---
-
-# Fresh Backend Core Report
-
-## Overview
-A clean, robust foundation has been successfully established for the BigDeals backend. The project strictly aligns with the Class Diagram V6 and leverages pure ADO.NET and raw SQL without Entity Framework. The architecture employs standard best practices, such as structured Repositories, Services, DTOs, Controllers, and Centralized Error Handling.
-
-## Build Result
-- **Result:** Build Succeeded (0 Warnings, 0 Errors)
-- **Dependencies Installed:** `Microsoft.Data.SqlClient` (v7.0.1) and `Microsoft.AspNetCore.Authentication.JwtBearer` (v8.0.*).
-
-## SQL Database Setup
-The following scripts were created in `Data/Sql/Scripts/`:
-- `00_CreateDatabase.sql`: Database creation.
-- `01_CreateTables.sql`: Created tables for `Utilisateurs` and `DemandesAnnonceur`.
-- `02_CreateConstraints.sql`: Ensured data integrity with foreign keys, checks on role/status enums, and a filtered unique index preventing multiple pending requests per user.
-- `03_CreateIndexes.sql`: Performance indexes on Email, IdUtilisateur, and Statut.
-- `04_SeedInitialData.sql`: Seeded the first admin user (`admin@bigdeals.com`) using a precomputed PBKDF2 salt and hash (`AdminPassword123!`).
-- `99_DropAll.sql`: Utility script for cleaning up schemas.
-
-## Modules Implemented
-- **Auth**:
-  - `POST /api/auth/register`: Safely registers a user. Forcibly assigns the `CLIENT` role and `ACTIF` status regardless of DTO contents. Hashes password using PBKDF2 (100,000 iterations + Salt).
-  - `POST /api/auth/login`: Checks credentials. Validates that the account is `ACTIF` before issuing a JWT containing Id, Email, and Role.
-- **Users**:
-  - `GET /api/users/me`: Retrieves current authenticated user.
-  - `PUT /api/users/me`: Updates safe profile fields (Role, Statut, ID, DateCreation are ignored).
-  - `PUT /api/users/me/password`: Secure password change endpoint that enforces matching and verifies the old password hash.
-- **Demande Annonceur (Advertiser Requests)**:
-  - `POST /api/demandes-annonceur`: Client submits an advertiser request. Validates the user does not already have an active request.
-  - `GET /api/demandes-annonceur/me`: Returns the user's historical and pending requests.
-  - `GET /api/admin/demandes-annonceur`: Admin views all requests.
-  - `GET /api/admin/demandes-annonceur/{id}`: Admin views a single request.
-  - `PUT /api/admin/demandes-annonceur/{id}/approve`: **Transactional operation**. Approves the request, records the admin action, and natively updates the user's role to `ANNONCEUR` inside a SQL transaction. Rolls back completely on failure.
-  - `PUT /api/admin/demandes-annonceur/{id}/reject`: Rejects the request, enforces a `MotifRejet` string, and leaves the user's role as `CLIENT`.
-
-## Enum Mapping Applied
-```csharp
-RoleUtilisateur:
-1 = CLIENT
-2 = ANNONCEUR
-3 = ADMIN
-
-StatutCompte:
-1 = ACTIF
-2 = INACTIF
-3 = EN_ATTENTE
-4 = BLOQUE
-
-StatutDemandeAnnonceur:
-1 = EN_ATTENTE
-2 = APPROUVEE
-3 = REJETEE
-```
-All components including SQL Constraints, JWT logic, and C# files use these specific values.
-
-## Security & Architectural Rules Enforced
-- **JWT Authorization**: Integrated via `[Authorize(Policy = "AdminOnly")]` relying cleanly on the `.ToString()` representations of the enums within the JWT Payload.
-- **Password Hashing**: Stored as `PBKDF2$100000$saltBase64$hashBase64`.
-- **SQL Transactions**: Utilized exclusively in `UpdateStatusToApprovedAsync` via `SqlTransaction` logic to assure atomic role changes.
-- **Raw ADO.NET**: `SqlConnectionFactory` combined with parameterized SQL commands prevents injection vulnerabilities.
-- **Clean Structure**: Standardized `ApiResponse<T>` wrappers and `GlobalExceptionMiddleware`.
-
-## Next Steps / TODOs
-1. **Database Migration Run**: Already executed internally during testing against local SQL Express. You can re-run against your target SQL Server instance.
-2. **Postman Tests**: All 14 API tests (Auth, Me, Updates, Password Change, Advertiser Requests Creation & Admin Approval, Validation failures) were fully executed automatically and passed exactly as specified.
-3. **Phase C (Missing Modules)**: Proceed to build the remainder of the domain models (Favoris, Commandes, Panier, Categories, Annonces) on top of this stable foundation.
 
 
 --- FILE: gather_codebase.js ---
@@ -884,6 +1219,17 @@ public class CurrentUserService : ICurrentUserService
 
         throw new UnauthorizedException("User ID not found in token.");
     }
+
+    public long? Id
+    {
+        get
+        {
+            var claim = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier);
+            return (claim != null && long.TryParse(claim.Value, out var userId)) ? userId : null;
+        }
+    }
+
+    public string? Role => _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value;
 }
 
 
@@ -913,6 +1259,8 @@ public interface IPasswordHasher
 public interface ICurrentUserService
 {
     long GetUserId();
+    long? Id { get; }
+    string? Role { get; }
 }
 
 
@@ -1035,6 +1383,52 @@ public class PasswordHasher : IPasswordHasher
 }
 
 
+--- FILE: Interfaces\Annonces\IAnnonceRepository.cs ---
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using api.Models;
+using api.Models.Enums;
+
+namespace api.Interfaces.Annonces;
+
+public interface IAnnonceRepository
+{
+    Task<long> CreateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs);
+    Task<long> CreateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs, List<ImageAnnonce> images);
+    Task<bool> UpdateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs);
+    Task<bool> DeleteAsync(long id);
+    Task<Annonce?> GetByIdAsync(long id);
+    Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null);
+    Task<IReadOnlyList<ValeurAttributAnnonce>> GetValeursByAnnonceIdAsync(long idAnnonce);
+    Task<IReadOnlyList<ImageAnnonce>> GetImagesByAnnonceIdAsync(long idAnnonce);
+    Task<bool> UpdateStatutAsync(long id, StatutAnnonce statut);
+}
+
+
+--- FILE: Interfaces\Annonces\IAnnonceService.cs ---
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using api.Dtos.Annonces;
+using api.Common;
+
+namespace api.Interfaces.Annonces;
+
+public interface IAnnonceService
+{
+    Task<long> CreateAnnonceAsync(CreateAnnonceFormDto dto, long currentUserId);
+    Task<bool> UpdateAnnonceAsync(long id, UpdateAnnonceDto dto, long currentUserId);
+    Task<bool> DeleteAnnonceAsync(long id, long currentUserId);
+    Task<AnnonceDetailsDto> GetAnnonceByIdAsync(long id, long? currentUserId = null);
+    Task<PagedResponse<AnnonceDto>> GetPublicAnnoncesAsync(int pageNumber, int pageSize);
+    Task<PagedResponse<AnnonceDto>> GetUserAnnoncesAsync(long userId, int pageNumber, int pageSize);
+    Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize);
+    Task<bool> SuspendAnnonceAsync(long id);
+    Task<bool> RestoreAnnonceAsync(long id);
+}
+
+
 --- FILE: Interfaces\Auth\IAuthInterfaces.cs ---
 
 using System.Threading.Tasks;
@@ -1054,6 +1448,40 @@ public interface IAuthRepository
     Task<bool> EmailExistsAsync(string email);
     Task<Utilisateur?> GetUserByEmailAsync(string email);
     Task<long> CreateUserAsync(Utilisateur user);
+}
+
+
+--- FILE: Interfaces\Categories\ICategoryRepository.cs ---
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using api.Models;
+
+namespace api.Interfaces.Categories;
+
+public interface ICategoryRepository
+{
+    Task<IReadOnlyList<Categorie>> GetAllAsync();
+    Task<Categorie?> GetByIdAsync(int id);
+    Task<IReadOnlyList<AttributCategorie>> GetAttributesByCategoryIdAsync(int idCategorie);
+    Task<IReadOnlyList<OptionAttributCategorie>> GetOptionsByAttributeIdAsync(int idAttributCategorie);
+}
+
+
+--- FILE: Interfaces\Categories\ICategoryService.cs ---
+
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using api.Dtos.Categories;
+
+namespace api.Interfaces.Categories;
+
+public interface ICategoryService
+{
+    Task<IReadOnlyList<CategoryDto>> GetAllCategoriesAsync();
+    Task<CategoryDetailsDto> GetCategoryByIdAsync(int id);
+    Task<IReadOnlyList<AttributeCategoryDto>> GetCategoryAttributesAsync(int id);
+    Task<CategorySchemaDto> GetCategorySchemaAsync(int id);
 }
 
 
@@ -1115,6 +1543,67 @@ public interface IUserRepository
 }
 
 
+--- FILE: Models\Annonce.cs ---
+
+using System;
+using api.Models.Enums;
+
+namespace api.Models;
+
+public class Annonce
+{
+    public long IdAnnonce { get; set; }
+    public long IdUtilisateur { get; set; }
+    public int IdCategorie { get; set; }
+    public string Titre { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public decimal Prix { get; set; }
+    public string? Localisation { get; set; }
+    public StatutAnnonce Statut { get; set; }
+    public DateTime DateCreation { get; set; }
+    public DateTime? DatePublication { get; set; }
+    public DateTime? DateExpiration { get; set; }
+    public bool EstActive { get; set; }
+}
+
+
+--- FILE: Models\AttributCategorie.cs ---
+
+using api.Models.Enums;
+
+namespace api.Models;
+
+public class AttributCategorie
+{
+    public int IdAttributCategorie { get; set; }
+    public int IdCategorie { get; set; }
+    public string Nom { get; set; } = string.Empty;
+    public TypeDonneeAttribut TypeDonnee { get; set; }
+    public bool Obligatoire { get; set; }
+    public bool Filtrable { get; set; }
+    public int OrdreAffichage { get; set; }
+    public bool EstActive { get; set; }
+}
+
+
+--- FILE: Models\Categorie.cs ---
+
+using System;
+
+namespace api.Models;
+
+public class Categorie
+{
+    public int IdCategorie { get; set; }
+    public string Nom { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? IconKey { get; set; }
+    public int OrdreAffichage { get; set; }
+    public bool EstActive { get; set; }
+    public DateTime DateCreation { get; set; }
+}
+
+
 --- FILE: Models\DemandeAnnonceur.cs ---
 
 using System;
@@ -1164,6 +1653,55 @@ public enum StatutDemandeAnnonceur
     REJETEE = 3
 }
 
+public enum TypeDonneeAttribut
+{
+    TEXTE = 1,
+    NOMBRE = 2,
+    DATE = 3,
+    BOOLEAN = 4,
+    LISTE = 5
+}
+
+public enum StatutAnnonce
+{
+    BROUILLON = 1,
+    PUBLIEE = 2,
+    SUSPENDUE = 3,
+    EXPIREE = 4,
+    SUPPRIMEE = 5
+}
+
+
+--- FILE: Models\ImageAnnonce.cs ---
+
+using System;
+
+namespace api.Models;
+
+public class ImageAnnonce
+{
+    public long IdImageAnnonce { get; set; }
+    public long IdAnnonce { get; set; }
+    public string Url { get; set; } = string.Empty;
+    public int OrdreAffichage { get; set; }
+    public bool EstPrincipale { get; set; }
+    public DateTime DateCreation { get; set; }
+}
+
+
+--- FILE: Models\OptionAttributCategorie.cs ---
+
+namespace api.Models;
+
+public class OptionAttributCategorie
+{
+    public int IdOptionAttributCategorie { get; set; }
+    public int IdAttributCategorie { get; set; }
+    public string Valeur { get; set; } = string.Empty;
+    public int OrdreAffichage { get; set; }
+    public bool EstActive { get; set; }
+}
+
 
 --- FILE: Models\Utilisateur.cs ---
 
@@ -1190,6 +1728,25 @@ public class Utilisateur
 }
 
 
+--- FILE: Models\ValeurAttributAnnonce.cs ---
+
+using System;
+
+namespace api.Models;
+
+public class ValeurAttributAnnonce
+{
+    public long IdValeurAttributAnnonce { get; set; }
+    public long IdAnnonce { get; set; }
+    public int IdAttributCategorie { get; set; }
+    public int? IdOptionAttributCategorie { get; set; }
+    public string? ValeurTexte { get; set; }
+    public decimal? ValeurNombre { get; set; }
+    public DateTime? ValeurDate { get; set; }
+    public bool? ValeurBooleen { get; set; }
+}
+
+
 --- FILE: Program.cs ---
 
 using System.Text;
@@ -1209,6 +1766,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 // Configure JWT Settings
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
@@ -1290,6 +1858,10 @@ app.UseMiddleware<GlobalExceptionMiddleware>();
 
 app.UseHttpsRedirection();
 
+app.UseStaticFiles();
+
+app.UseCors("AllowAll");
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -1340,6 +1912,646 @@ app.Run();
       }
     }
   }
+}
+
+
+--- FILE: public\app.js ---
+
+// Configuration
+const API_BASE_URL = 'http://localhost:5049/api';
+
+// Initialize Lucide Icons
+lucide.createIcons();
+
+// State
+let selectedFiles = [];
+let categorySchema = [];
+
+// DOM Elements
+const form = document.getElementById('annonce-form');
+const categorySelect = document.getElementById('IdCategorie');
+const dynamicSection = document.getElementById('dynamic-section');
+const dynamicAttributes = document.getElementById('dynamic-attributes');
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('Images');
+const previewGrid = document.getElementById('preview-grid');
+const submitBtn = document.getElementById('submit-btn');
+
+// --- Initialization ---
+
+document.addEventListener('DOMContentLoaded', () => {
+    fetchCategories();
+    setupImageUpload();
+});
+
+// --- API Calls ---
+
+async function fetchCategories() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/categories`);
+        const result = await response.json();
+        if (result.success) {
+            result.data.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.idCategorie;
+                option.textContent = cat.nom;
+                categorySelect.appendChild(option);
+            });
+        }
+    } catch (err) {
+        showToast('Error loading categories', 'error');
+    }
+}
+
+categorySelect.addEventListener('change', async (e) => {
+    const catId = e.target.value;
+    if (!catId) {
+        dynamicSection.style.display = 'none';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/categories/${catId}/attributes`);
+        const result = await response.json();
+        if (result.success) {
+            categorySchema = result.data;
+            renderDynamicFields(result.data);
+            dynamicSection.style.display = 'block';
+        }
+    } catch (err) {
+        showToast('Error loading category attributes', 'error');
+    }
+});
+
+// --- Dynamic Rendering ---
+
+function renderDynamicFields(attributes) {
+    dynamicAttributes.innerHTML = '';
+    
+    attributes.forEach(attr => {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.textContent = attr.nom + (attr.obligatoire ? ' *' : '');
+        group.appendChild(label);
+
+        let input;
+        
+        const type = attr.typeDonnee.toUpperCase();
+
+        if (type === 'LISTE' && attr.options) {
+            input = document.createElement('select');
+            input.className = 'form-control';
+            input.dataset.attrId = attr.idAttributCategorie;
+            input.dataset.type = 'option';
+            
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = `Select ${attr.nom}...`;
+            input.appendChild(defaultOpt);
+
+            attr.options.forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt.idOptionAttributCategorie;
+                o.textContent = opt.valeur;
+                input.appendChild(o);
+            });
+        } else if (type === 'NOMBRE') {
+            input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'form-control';
+            input.dataset.attrId = attr.idAttributCategorie;
+            input.dataset.type = 'number';
+            input.placeholder = `Enter ${attr.nom}...`;
+        } else {
+            input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control';
+            input.dataset.attrId = attr.idAttributCategorie;
+            input.dataset.type = 'text';
+            input.placeholder = `Enter ${attr.nom}...`;
+        }
+
+        if (attr.obligatoire) input.required = true;
+        group.appendChild(input);
+        dynamicAttributes.appendChild(group);
+    });
+}
+
+// --- Image Handling ---
+
+function setupImageUpload() {
+    uploadZone.addEventListener('click', () => fileInput.click());
+    
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('dragover');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+    });
+}
+
+function handleFiles(files) {
+    const newFiles = Array.from(files);
+    if (selectedFiles.length + newFiles.length > 8) {
+        showToast('Maximum 8 images allowed', 'error');
+        return;
+    }
+
+    newFiles.forEach(file => {
+        if (!file.type.startsWith('image/')) return;
+        selectedFiles.push(file);
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const div = document.createElement('div');
+            div.className = 'preview-item';
+            div.innerHTML = `
+                <img src="${e.target.result}">
+                <button type="button" class="remove-img" onclick="removeImage(${selectedFiles.length - 1})">×</button>
+            `;
+            previewGrid.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+window.removeImage = (index) => {
+    selectedFiles.splice(index, 1);
+    renderPreviews();
+};
+
+function renderPreviews() {
+    previewGrid.innerHTML = '';
+    selectedFiles.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const div = document.createElement('div');
+            div.className = 'preview-item';
+            div.innerHTML = `
+                <img src="${e.target.result}">
+                <button type="button" class="remove-img" onclick="removeImage(${index})">×</button>
+            `;
+            previewGrid.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// --- Form Submission ---
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    if (selectedFiles.length === 0) {
+        showToast('Please upload at least one image', 'error');
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Publishing...';
+
+    const formData = new FormData();
+    formData.append('IdCategorie', document.getElementById('IdCategorie').value);
+    formData.append('Titre', document.getElementById('Titre').value);
+    formData.append('Description', document.getElementById('Description').value);
+    formData.append('Prix', document.getElementById('Prix').value);
+    formData.append('Localisation', document.getElementById('Localisation').value);
+
+    // Dynamic Attributes Formatting
+    const values = [];
+    const dynInputs = dynamicAttributes.querySelectorAll('.form-control');
+    dynInputs.forEach(input => {
+        if (!input.value) return;
+
+        const obj = { idAttributCategorie: parseInt(input.dataset.attrId) };
+        const type = input.dataset.type;
+
+        if (type === 'option') {
+            obj.idOptionAttributCategorie = parseInt(input.value);
+        } else if (type === 'number') {
+            obj.valeurNombre = parseFloat(input.value);
+        } else {
+            obj.valeurTexte = input.value;
+        }
+        
+        // Use the fix we implemented: stringified JSON for ValeursJson
+        formData.append('ValeursJson', JSON.stringify(obj));
+    });
+
+    // Images
+    selectedFiles.forEach(file => {
+        formData.append('Images', file);
+    });
+
+    try {
+        const tokenInput = document.getElementById('jwt-token').value.trim();
+        if (!tokenInput) {
+            showToast('Please provide an authentication token', 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Publish Announcement';
+            return;
+        }
+
+        const token = tokenInput.startsWith('Bearer ') ? tokenInput : `Bearer ${tokenInput}`;
+
+        const response = await fetch(`${API_BASE_URL}/annonces`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Authorization': token
+            }
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast('Announcement published successfully!', 'success');
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            showToast(result.message || 'Submission failed', 'error');
+        }
+    } catch (err) {
+        showToast('Network error, please try again', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Publish Announcement';
+    }
+});
+
+// --- Helpers ---
+
+function showToast(msg, type = 'success') {
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-msg');
+    
+    toast.style.display = 'block';
+    toastMsg.textContent = msg;
+    toast.style.borderColor = type === 'success' ? '#10b981' : '#ef4444';
+    
+    setTimeout(() => {
+        toast.style.transform = 'translateY(0)';
+        setTimeout(() => {
+            toast.style.transform = 'translateY(100px)';
+            setTimeout(() => toast.style.display = 'none', 400);
+        }, 3000);
+    }, 10);
+}
+
+
+--- FILE: Repositories\Annonces\AnnonceRepository.cs ---
+
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
+using api.Data.Connections;
+using api.Interfaces.Annonces;
+using api.Models;
+using api.Models.Enums;
+
+namespace api.Repositories.Annonces;
+
+public class AnnonceRepository : IAnnonceRepository
+{
+    private readonly ISqlConnectionFactory _connectionFactory;
+
+    public AnnonceRepository(ISqlConnectionFactory connectionFactory)
+    {
+        _connectionFactory = connectionFactory;
+    }
+
+    public async Task<long> CreateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs)
+    {
+        // This method is now replaced by the one with images, but keeping it for compatibility if needed.
+        return await CreateAsync(annonce, valeurs, new List<ImageAnnonce>());
+    }
+
+    public async Task<long> CreateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs, List<ImageAnnonce> images)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            const string sqlAnnonce = @"
+                INSERT INTO Annonces (IdUtilisateur, IdCategorie, Titre, Description, Prix, Localisation, Statut, DateCreation, DatePublication, EstActive)
+                OUTPUT INSERTED.IdAnnonce
+                VALUES (@IdUtilisateur, @IdCategorie, @Titre, @Description, @Prix, @Localisation, @Statut, @DateCreation, @DatePublication, @EstActive)";
+
+            using var cmdAnnonce = new SqlCommand(sqlAnnonce, connection, transaction);
+            cmdAnnonce.Parameters.AddWithValue("@IdUtilisateur", annonce.IdUtilisateur);
+            cmdAnnonce.Parameters.AddWithValue("@IdCategorie", annonce.IdCategorie);
+            cmdAnnonce.Parameters.AddWithValue("@Titre", annonce.Titre);
+            cmdAnnonce.Parameters.AddWithValue("@Description", annonce.Description);
+            cmdAnnonce.Parameters.AddWithValue("@Prix", annonce.Prix);
+            cmdAnnonce.Parameters.AddWithValue("@Localisation", (object?)annonce.Localisation ?? DBNull.Value);
+            cmdAnnonce.Parameters.AddWithValue("@Statut", (int)annonce.Statut);
+            cmdAnnonce.Parameters.AddWithValue("@DateCreation", annonce.DateCreation);
+            cmdAnnonce.Parameters.AddWithValue("@DatePublication", (object?)annonce.DatePublication ?? DBNull.Value);
+            cmdAnnonce.Parameters.AddWithValue("@EstActive", annonce.EstActive);
+
+            var idAnnonce = (long)await cmdAnnonce.ExecuteScalarAsync();
+
+            if (valeurs.Count > 0)
+            {
+                const string sqlValeur = @"
+                    INSERT INTO ValeursAttributAnnonce (IdAnnonce, IdAttributCategorie, IdOptionAttributCategorie, ValeurTexte, ValeurNombre, ValeurDate, ValeurBooleen)
+                    VALUES (@IdAnnonce, @IdAttributCategorie, @IdOptionAttributCategorie, @ValeurTexte, @ValeurNombre, @ValeurDate, @ValeurBooleen)";
+
+                foreach (var v in valeurs)
+                {
+                    using var cmdValeur = new SqlCommand(sqlValeur, connection, transaction);
+                    cmdValeur.Parameters.AddWithValue("@IdAnnonce", idAnnonce);
+                    cmdValeur.Parameters.AddWithValue("@IdAttributCategorie", v.IdAttributCategorie);
+                    cmdValeur.Parameters.AddWithValue("@IdOptionAttributCategorie", (object?)v.IdOptionAttributCategorie ?? DBNull.Value);
+                    cmdValeur.Parameters.AddWithValue("@ValeurTexte", (object?)v.ValeurTexte ?? DBNull.Value);
+                    cmdValeur.Parameters.AddWithValue("@ValeurNombre", (object?)v.ValeurNombre ?? DBNull.Value);
+                    cmdValeur.Parameters.AddWithValue("@ValeurDate", (object?)v.ValeurDate ?? DBNull.Value);
+                    cmdValeur.Parameters.AddWithValue("@ValeurBooleen", (object?)v.ValeurBooleen ?? DBNull.Value);
+                    await cmdValeur.ExecuteNonQueryAsync();
+                }
+            }
+
+            if (images.Count > 0)
+            {
+                const string sqlImage = @"
+                    INSERT INTO ImagesAnnonce (IdAnnonce, Url, OrdreAffichage, EstPrincipale, DateCreation)
+                    VALUES (@IdAnnonce, @Url, @OrdreAffichage, @EstPrincipale, @DateCreation)";
+
+                foreach (var img in images)
+                {
+                    using var cmdImage = new SqlCommand(sqlImage, connection, transaction);
+                    cmdImage.Parameters.AddWithValue("@IdAnnonce", idAnnonce);
+                    cmdImage.Parameters.AddWithValue("@Url", img.Url);
+                    cmdImage.Parameters.AddWithValue("@OrdreAffichage", img.OrdreAffichage);
+                    cmdImage.Parameters.AddWithValue("@EstPrincipale", img.EstPrincipale);
+                    cmdImage.Parameters.AddWithValue("@DateCreation", DateTime.UtcNow);
+                    await cmdImage.ExecuteNonQueryAsync();
+                }
+            }
+
+            await transaction.CommitAsync();
+            return idAnnonce;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<bool> UpdateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            const string sqlAnnonce = @"
+                UPDATE Annonces SET 
+                    Titre = @Titre, 
+                    Description = @Description, 
+                    Prix = @Prix, 
+                    Localisation = @Localisation,
+                    DateExpiration = @DateExpiration
+                WHERE IdAnnonce = @IdAnnonce";
+
+            using var cmdAnnonce = new SqlCommand(sqlAnnonce, connection, transaction);
+            cmdAnnonce.Parameters.AddWithValue("@Titre", annonce.Titre);
+            cmdAnnonce.Parameters.AddWithValue("@Description", annonce.Description);
+            cmdAnnonce.Parameters.AddWithValue("@Prix", annonce.Prix);
+            cmdAnnonce.Parameters.AddWithValue("@Localisation", (object?)annonce.Localisation ?? DBNull.Value);
+            cmdAnnonce.Parameters.AddWithValue("@DateExpiration", (object?)annonce.DateExpiration ?? DBNull.Value);
+            cmdAnnonce.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
+
+            var rowsAffected = await cmdAnnonce.ExecuteNonQueryAsync();
+            if (rowsAffected == 0)
+            {
+                await transaction.RollbackAsync();
+                return false;
+            }
+
+            const string sqlDelete = "DELETE FROM ValeursAttributAnnonce WHERE IdAnnonce = @IdAnnonce";
+            using var cmdDelete = new SqlCommand(sqlDelete, connection, transaction);
+            cmdDelete.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
+            await cmdDelete.ExecuteNonQueryAsync();
+
+            if (valeurs.Count > 0)
+            {
+                const string sqlValeur = @"
+                    INSERT INTO ValeursAttributAnnonce (IdAnnonce, IdAttributCategorie, IdOptionAttributCategorie, ValeurTexte, ValeurNombre, ValeurDate, ValeurBooleen)
+                    VALUES (@IdAnnonce, @IdAttributCategorie, @IdOptionAttributCategorie, @ValeurTexte, @ValeurNombre, @ValeurDate, @ValeurBooleen)";
+
+                foreach (var v in valeurs)
+                {
+                    using var cmdValeur = new SqlCommand(sqlValeur, connection, transaction);
+                    cmdValeur.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
+                    cmdValeur.Parameters.AddWithValue("@IdAttributCategorie", v.IdAttributCategorie);
+                    cmdValeur.Parameters.AddWithValue("@IdOptionAttributCategorie", (object?)v.IdOptionAttributCategorie ?? DBNull.Value);
+                    cmdValeur.Parameters.AddWithValue("@ValeurTexte", (object?)v.ValeurTexte ?? DBNull.Value);
+                    cmdValeur.Parameters.AddWithValue("@ValeurNombre", (object?)v.ValeurNombre ?? DBNull.Value);
+                    cmdValeur.Parameters.AddWithValue("@ValeurDate", (object?)v.ValeurDate ?? DBNull.Value);
+                    cmdValeur.Parameters.AddWithValue("@ValeurBooleen", (object?)v.ValeurBooleen ?? DBNull.Value);
+                    await cmdValeur.ExecuteNonQueryAsync();
+                }
+            }
+
+            await transaction.CommitAsync();
+            return true;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<bool> DeleteAsync(long id)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = "UPDATE Annonces SET Statut = 5, EstActive = 0 WHERE IdAnnonce = @Id";
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", id);
+        
+        await connection.OpenAsync();
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<Annonce?> GetByIdAsync(long id)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = "SELECT * FROM Annonces WHERE IdAnnonce = @Id";
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", id);
+        
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return MapToAnnonce(reader);
+        }
+        return null;
+    }
+
+    public async Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        await connection.OpenAsync();
+
+        var whereClauses = new List<string>();
+        var parameters = new List<SqlParameter>();
+
+        if (statut.HasValue)
+        {
+            whereClauses.Add("Statut = @Statut");
+            parameters.Add(new SqlParameter("@Statut", (int)statut.Value));
+        }
+        if (estActif.HasValue)
+        {
+            whereClauses.Add("EstActive = @EstActive");
+            parameters.Add(new SqlParameter("@EstActive", estActif.Value));
+        }
+        if (idUtilisateur.HasValue)
+        {
+            whereClauses.Add("IdUtilisateur = @IdUtilisateur");
+            parameters.Add(new SqlParameter("@IdUtilisateur", idUtilisateur.Value));
+        }
+
+        string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
+
+        string countSql = $"SELECT COUNT(*) FROM Annonces {whereSql}";
+        using var countCmd = new SqlCommand(countSql, connection);
+        foreach (var p in parameters) countCmd.Parameters.Add(new SqlParameter(p.ParameterName, p.Value));
+        int totalCount = (int)await countCmd.ExecuteScalarAsync();
+
+        string itemsSql = $@"
+            SELECT * FROM Annonces 
+            {whereSql}
+            ORDER BY DateCreation DESC
+            OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+
+        using var itemsCmd = new SqlCommand(itemsSql, connection);
+        foreach (var p in parameters) itemsCmd.Parameters.Add(new SqlParameter(p.ParameterName, p.Value));
+        itemsCmd.Parameters.AddWithValue("@Offset", (pageNumber - 1) * pageSize);
+        itemsCmd.Parameters.AddWithValue("@PageSize", pageSize);
+
+        using var reader = await itemsCmd.ExecuteReaderAsync();
+        var items = new List<Annonce>();
+        while (await reader.ReadAsync())
+        {
+            items.Add(MapToAnnonce(reader));
+        }
+
+        return (items, totalCount);
+    }
+
+    public async Task<IReadOnlyList<ValeurAttributAnnonce>> GetValeursByAnnonceIdAsync(long idAnnonce)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = "SELECT * FROM ValeursAttributAnnonce WHERE IdAnnonce = @IdAnnonce";
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@IdAnnonce", idAnnonce);
+        
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        var list = new List<ValeurAttributAnnonce>();
+        while (await reader.ReadAsync())
+        {
+            list.Add(new ValeurAttributAnnonce
+            {
+                IdValeurAttributAnnonce = (long)reader["IdValeurAttributAnnonce"],
+                IdAnnonce = (long)reader["IdAnnonce"],
+                IdAttributCategorie = (int)reader["IdAttributCategorie"],
+                IdOptionAttributCategorie = reader["IdOptionAttributCategorie"] == DBNull.Value ? null : (int)reader["IdOptionAttributCategorie"],
+                ValeurTexte = reader["ValeurTexte"] == DBNull.Value ? null : (string)reader["ValeurTexte"],
+                ValeurNombre = reader["ValeurNombre"] == DBNull.Value ? null : (decimal)reader["ValeurNombre"],
+                ValeurDate = reader["ValeurDate"] == DBNull.Value ? null : (DateTime)reader["ValeurDate"],
+                ValeurBooleen = reader["ValeurBooleen"] == DBNull.Value ? null : (bool)reader["ValeurBooleen"]
+            });
+        }
+        return list;
+    }
+
+    public async Task<IReadOnlyList<ImageAnnonce>> GetImagesByAnnonceIdAsync(long idAnnonce)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = "SELECT * FROM ImagesAnnonce WHERE IdAnnonce = @IdAnnonce ORDER BY OrdreAffichage ASC";
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@IdAnnonce", idAnnonce);
+        
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        var list = new List<ImageAnnonce>();
+        while (await reader.ReadAsync())
+        {
+            list.Add(new ImageAnnonce
+            {
+                IdImageAnnonce = (long)reader["IdImageAnnonce"],
+                IdAnnonce = (long)reader["IdAnnonce"],
+                Url = (string)reader["Url"],
+                OrdreAffichage = (int)reader["OrdreAffichage"],
+                EstPrincipale = (bool)reader["EstPrincipale"],
+                DateCreation = (DateTime)reader["DateCreation"]
+            });
+        }
+        return list;
+    }
+
+    public async Task<bool> UpdateStatutAsync(long id, StatutAnnonce statut)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        string sql = "UPDATE Annonces SET Statut = @Statut";
+        if (statut == StatutAnnonce.PUBLIEE) sql += ", DatePublication = ISNULL(DatePublication, SYSUTCDATETIME())";
+        sql += " WHERE IdAnnonce = @Id";
+        
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Statut", (int)statut);
+        command.Parameters.AddWithValue("@Id", id);
+        
+        await connection.OpenAsync();
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
+    private static Annonce MapToAnnonce(SqlDataReader reader)
+    {
+        return new Annonce
+        {
+            IdAnnonce = (long)reader["IdAnnonce"],
+            IdUtilisateur = (long)reader["IdUtilisateur"],
+            IdCategorie = (int)reader["IdCategorie"],
+            Titre = (string)reader["Titre"],
+            Description = (string)reader["Description"],
+            Prix = (decimal)reader["Prix"],
+            Localisation = reader["Localisation"] == DBNull.Value ? null : (string)reader["Localisation"],
+            Statut = (StatutAnnonce)(int)reader["Statut"],
+            DateCreation = (DateTime)reader["DateCreation"],
+            DatePublication = reader["DatePublication"] == DBNull.Value ? null : (DateTime)reader["DatePublication"],
+            DateExpiration = reader["DateExpiration"] == DBNull.Value ? null : (DateTime)reader["DateExpiration"],
+            EstActive = (bool)reader["EstActive"]
+        };
+    }
+
+    // Overload for the interface
+    public async Task<long> CreateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs, List<ImageAnnonce> images, IDbTransaction? transaction = null)
+    {
+        return await CreateAsync(annonce, valeurs, images);
+    }
 }
 
 
@@ -1427,6 +2639,141 @@ public class AuthRepository : IAuthRepository
 
         await ((SqlConnection)connection).OpenAsync();
         return (long)await command.ExecuteScalarAsync();
+    }
+}
+
+
+--- FILE: Repositories\Categories\CategoryRepository.cs ---
+
+using System.Collections.Generic;
+using System.Data;
+using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
+using api.Data.Connections;
+using api.Interfaces.Categories;
+using api.Models;
+using api.Models.Enums;
+
+namespace api.Repositories.Categories;
+
+public class CategoryRepository : ICategoryRepository
+{
+    private readonly ISqlConnectionFactory _connectionFactory;
+
+    public CategoryRepository(ISqlConnectionFactory connectionFactory)
+    {
+        _connectionFactory = connectionFactory;
+    }
+
+    public async Task<IReadOnlyList<Categorie>> GetAllAsync()
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = "SELECT * FROM Categories WHERE EstActive = 1 ORDER BY OrdreAffichage";
+        using var command = new SqlCommand(sql, (SqlConnection)connection);
+        
+        if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        
+        var categories = new List<Categorie>();
+        while (await reader.ReadAsync())
+        {
+            categories.Add(MapToCategorie(reader));
+        }
+        return categories;
+    }
+
+    public async Task<Categorie?> GetByIdAsync(int id)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = "SELECT * FROM Categories WHERE IdCategorie = @Id AND EstActive = 1";
+        using var command = new SqlCommand(sql, (SqlConnection)connection);
+        command.Parameters.AddWithValue("@Id", id);
+        
+        if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        
+        if (await reader.ReadAsync())
+        {
+            return MapToCategorie(reader);
+        }
+        return null;
+    }
+
+    public async Task<IReadOnlyList<AttributCategorie>> GetAttributesByCategoryIdAsync(int idCategorie)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = "SELECT * FROM AttributsCategorie WHERE IdCategorie = @IdCategorie AND EstActive = 1 ORDER BY OrdreAffichage";
+        using var command = new SqlCommand(sql, (SqlConnection)connection);
+        command.Parameters.AddWithValue("@IdCategorie", idCategorie);
+        
+        if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        
+        var attributes = new List<AttributCategorie>();
+        while (await reader.ReadAsync())
+        {
+            attributes.Add(MapToAttributCategorie(reader));
+        }
+        return attributes;
+    }
+
+    public async Task<IReadOnlyList<OptionAttributCategorie>> GetOptionsByAttributeIdAsync(int idAttributCategorie)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = "SELECT * FROM OptionsAttributCategorie WHERE IdAttributCategorie = @IdAttributCategorie AND EstActive = 1 ORDER BY OrdreAffichage";
+        using var command = new SqlCommand(sql, (SqlConnection)connection);
+        command.Parameters.AddWithValue("@IdAttributCategorie", idAttributCategorie);
+        
+        if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        
+        var options = new List<OptionAttributCategorie>();
+        while (await reader.ReadAsync())
+        {
+            options.Add(MapToOptionAttributCategorie(reader));
+        }
+        return options;
+    }
+
+    private static Categorie MapToCategorie(SqlDataReader reader)
+    {
+        return new Categorie
+        {
+            IdCategorie = reader.GetInt32(reader.GetOrdinal("IdCategorie")),
+            Nom = reader.GetString(reader.GetOrdinal("Nom")),
+            Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description")),
+            IconKey = reader.IsDBNull(reader.GetOrdinal("IconKey")) ? null : reader.GetString(reader.GetOrdinal("IconKey")),
+            OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage")),
+            EstActive = reader.GetBoolean(reader.GetOrdinal("EstActive")),
+            DateCreation = reader.GetDateTime(reader.GetOrdinal("DateCreation"))
+        };
+    }
+
+    private static AttributCategorie MapToAttributCategorie(SqlDataReader reader)
+    {
+        return new AttributCategorie
+        {
+            IdAttributCategorie = reader.GetInt32(reader.GetOrdinal("IdAttributCategorie")),
+            IdCategorie = reader.GetInt32(reader.GetOrdinal("IdCategorie")),
+            Nom = reader.GetString(reader.GetOrdinal("Nom")),
+            TypeDonnee = (TypeDonneeAttribut)reader.GetInt32(reader.GetOrdinal("TypeDonnee")),
+            Obligatoire = reader.GetBoolean(reader.GetOrdinal("Obligatoire")),
+            Filtrable = reader.GetBoolean(reader.GetOrdinal("Filtrable")),
+            OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage")),
+            EstActive = reader.GetBoolean(reader.GetOrdinal("EstActive"))
+        };
+    }
+
+    private static OptionAttributCategorie MapToOptionAttributCategorie(SqlDataReader reader)
+    {
+        return new OptionAttributCategorie
+        {
+            IdOptionAttributCategorie = reader.GetInt32(reader.GetOrdinal("IdOptionAttributCategorie")),
+            IdAttributCategorie = reader.GetInt32(reader.GetOrdinal("IdAttributCategorie")),
+            Valeur = reader.GetString(reader.GetOrdinal("Valeur")),
+            OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage")),
+            EstActive = reader.GetBoolean(reader.GetOrdinal("EstActive"))
+        };
     }
 }
 
@@ -1731,6 +3078,338 @@ public class UserRepository : IUserRepository
 }
 
 
+--- FILE: Services\Annonces\AnnonceService.cs ---
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using api.Common;
+using api.Dtos.Annonces;
+using api.Exceptions;
+using api.Interfaces.Annonces;
+using api.Interfaces.Categories;
+using api.Interfaces.Users;
+using api.Models;
+using api.Models.Enums;
+using api.Services.Storage;
+
+namespace api.Services.Annonces;
+
+public class AnnonceService : IAnnonceService
+{
+    private readonly IAnnonceRepository _annonceRepository;
+    private readonly ICategoryRepository _categoryRepository;
+    private readonly ILocalFileStorageService _storageService;
+
+    public AnnonceService(
+        IAnnonceRepository annonceRepository, 
+        ICategoryRepository categoryRepository,
+        ILocalFileStorageService storageService)
+    {
+        _annonceRepository = annonceRepository;
+        _categoryRepository = categoryRepository;
+        _storageService = storageService;
+    }
+
+    public async Task<long> CreateAnnonceAsync(CreateAnnonceFormDto dto, long currentUserId)
+    {
+        // 1. Validate Category
+        var category = await _categoryRepository.GetByIdAsync(dto.IdCategorie);
+        if (category == null || !category.EstActive)
+            throw new BadRequestException("Invalid or inactive category.");
+
+        // 2. Deserialize and Validate Dynamic Attributes
+        List<AnnonceAttributeValueDto> submittedValues = new();
+        
+        if (dto.ValeursJson != null && dto.ValeursJson.Count > 0)
+        {
+            foreach (var part in dto.ValeursJson)
+            {
+                var json = part.Trim();
+                
+                // Robust cleaning for multipart/form-data quirks
+                if (json.StartsWith("\"") && json.EndsWith("\"") && json.Length > 2)
+                {
+                    json = json.Substring(1, json.Length - 2);
+                    if (json.Contains("\\\""))
+                    {
+                        json = json.Replace("\\\"", "\"").Replace("\\\\", "\\");
+                    }
+                }
+                
+                json = new string(json.Where(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t').ToArray()).Trim();
+
+                try
+                {
+                    // Check if it's an array or a single object
+                    if (json.StartsWith("["))
+                    {
+                        var list = JsonSerializer.Deserialize<List<AnnonceAttributeValueDto>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (list != null) submittedValues.AddRange(list);
+                    }
+                    else if (json.StartsWith("{"))
+                    {
+                        var item = JsonSerializer.Deserialize<AnnonceAttributeValueDto>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (item != null) submittedValues.Add(item);
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    throw new BadRequestException($"Invalid JSON format for valeursJson: {ex.Message}");
+                }
+            }
+        }
+
+        var values = await ValidateAndMapAttributes(dto.IdCategorie, submittedValues);
+
+        // 3. Validate Images (Min 1, Max 8)
+        if (dto.Images == null || dto.Images.Count == 0)
+            throw new BadRequestException("At least one image is required.");
+        if (dto.Images.Count > 8)
+            throw new BadRequestException("Maximum 8 images allowed.");
+
+        // 4. Save Images to Filesystem
+        var savedImageUrls = new List<string>();
+        try
+        {
+            foreach (var file in dto.Images)
+            {
+                var url = await _storageService.SaveAnnonceImageAsync(file);
+                savedImageUrls.Add(url);
+            }
+
+            // 5. Map and Save to Database (Transactional)
+            var annonce = new Annonce
+            {
+                IdUtilisateur = currentUserId,
+                IdCategorie = dto.IdCategorie,
+                Titre = dto.Titre,
+                Description = dto.Description,
+                Prix = dto.Prix,
+                Localisation = dto.Localisation,
+                Statut = StatutAnnonce.PUBLIEE,
+                DateCreation = DateTime.UtcNow,
+                DatePublication = DateTime.UtcNow,
+                EstActive = true
+            };
+
+            var imageModels = savedImageUrls.Select((url, index) => new ImageAnnonce
+            {
+                Url = url,
+                OrdreAffichage = index + 1,
+                EstPrincipale = index == 0
+            }).ToList();
+
+            return await _annonceRepository.CreateAsync(annonce, values, imageModels);
+        }
+        catch
+        {
+            // Transactional Cleanup: Delete files if database insertion fails
+            foreach (var url in savedImageUrls)
+            {
+                await _storageService.DeleteFileAsync(url);
+            }
+            throw;
+        }
+    }
+
+    public async Task<bool> UpdateAnnonceAsync(long id, UpdateAnnonceDto dto, long currentUserId)
+    {
+        var existing = await _annonceRepository.GetByIdAsync(id);
+        if (existing == null) throw new NotFoundException("Annonce not found.");
+        if (existing.IdUtilisateur != currentUserId) throw new ForbiddenException("You don't own this annonce.");
+
+        var values = await ValidateAndMapAttributes(existing.IdCategorie, dto.Valeurs);
+
+        existing.Titre = dto.Titre;
+        existing.Description = dto.Description;
+        existing.Prix = dto.Prix;
+        existing.Localisation = dto.Localisation;
+
+        return await _annonceRepository.UpdateAsync(existing, values);
+    }
+
+    public async Task<bool> DeleteAnnonceAsync(long id, long currentUserId)
+    {
+        var existing = await _annonceRepository.GetByIdAsync(id);
+        if (existing == null) throw new NotFoundException("Annonce not found.");
+        if (existing.IdUtilisateur != currentUserId) throw new ForbiddenException("You don't own this annonce.");
+
+        return await _annonceRepository.DeleteAsync(id);
+    }
+
+    public async Task<AnnonceDetailsDto> GetAnnonceByIdAsync(long id, long? currentUserId = null)
+    {
+        var annonce = await _annonceRepository.GetByIdAsync(id);
+        if (annonce == null) throw new NotFoundException("Annonce not found.");
+
+        var category = await _categoryRepository.GetByIdAsync(annonce.IdCategorie);
+        var attributes = await _categoryRepository.GetAttributesByCategoryIdAsync(annonce.IdCategorie);
+        var values = await _annonceRepository.GetValeursByAnnonceIdAsync(id);
+        var images = await _annonceRepository.GetImagesByAnnonceIdAsync(id);
+
+        var details = new AnnonceDetailsDto
+        {
+            IdAnnonce = annonce.IdAnnonce,
+            IdUtilisateur = annonce.IdUtilisateur,
+            AnnonceurNom = $"User {annonce.IdUtilisateur}", 
+            IdCategorie = annonce.IdCategorie,
+            CategorieNom = category?.Nom ?? "Unknown",
+            Titre = annonce.Titre,
+            Description = annonce.Description,
+            Prix = annonce.Prix,
+            Localisation = annonce.Localisation,
+            Statut = annonce.Statut.ToString(),
+            DateCreation = annonce.DateCreation,
+            DatePublication = annonce.DatePublication,
+            Images = images.Select(img => new ImageAnnonceDto
+            {
+                IdImageAnnonce = img.IdImageAnnonce,
+                Url = img.Url,
+                OrdreAffichage = img.OrdreAffichage,
+                EstPrincipale = img.EstPrincipale
+            }).ToList()
+        };
+
+        foreach (var attr in attributes)
+        {
+            var val = values.FirstOrDefault(v => v.IdAttributCategorie == attr.IdAttributCategorie);
+            if (val != null)
+            {
+                string readableVal = "";
+                switch (attr.TypeDonnee)
+                {
+                    case TypeDonneeAttribut.TEXTE: readableVal = val.ValeurTexte ?? ""; break;
+                    case TypeDonneeAttribut.NOMBRE: readableVal = val.ValeurNombre?.ToString() ?? ""; break;
+                    case TypeDonneeAttribut.DATE: readableVal = val.ValeurDate?.ToShortDateString() ?? ""; break;
+                    case TypeDonneeAttribut.BOOLEAN: readableVal = (val.ValeurBooleen ?? false) ? "Oui" : "Non"; break;
+                    case TypeDonneeAttribut.LISTE:
+                        if (val.IdOptionAttributCategorie.HasValue)
+                        {
+                            var options = await _categoryRepository.GetOptionsByAttributeIdAsync(attr.IdAttributCategorie);
+                            readableVal = options.FirstOrDefault(o => o.IdOptionAttributCategorie == val.IdOptionAttributCategorie)?.Valeur ?? "";
+                        }
+                        break;
+                }
+                details.Attributs.Add(new AnnonceAttributeValueDetailsDto
+                {
+                    IdAttributCategorie = attr.IdAttributCategorie,
+                    Nom = attr.Nom,
+                    Valeur = readableVal
+                });
+            }
+        }
+
+        return details;
+    }
+
+    public async Task<PagedResponse<AnnonceDto>> GetPublicAnnoncesAsync(int pageNumber, int pageSize)
+    {
+        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, StatutAnnonce.PUBLIEE, true);
+        return await MapToPagedDto(items, total, pageNumber, pageSize);
+    }
+
+    public async Task<PagedResponse<AnnonceDto>> GetUserAnnoncesAsync(long userId, int pageNumber, int pageSize)
+    {
+        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, null, null, userId);
+        return await MapToPagedDto(items, total, pageNumber, pageSize);
+    }
+
+    public async Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize)
+    {
+        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize);
+        return await MapToPagedDto(items, total, pageNumber, pageSize);
+    }
+
+    public async Task<bool> SuspendAnnonceAsync(long id) => await _annonceRepository.UpdateStatutAsync(id, StatutAnnonce.SUSPENDUE);
+    public async Task<bool> RestoreAnnonceAsync(long id) => await _annonceRepository.UpdateStatutAsync(id, StatutAnnonce.PUBLIEE);
+
+    private async Task<List<ValeurAttributAnnonce>> ValidateAndMapAttributes(int idCategorie, List<AnnonceAttributeValueDto> submittedValues)
+    {
+        var schemaAttributes = await _categoryRepository.GetAttributesByCategoryIdAsync(idCategorie);
+        var result = new List<ValeurAttributAnnonce>();
+
+        if (submittedValues.GroupBy(v => v.IdAttributCategorie).Any(g => g.Count() > 1))
+            throw new BadRequestException("Duplicate attributes in request.");
+
+        foreach (var attr in schemaAttributes)
+        {
+            var submitted = submittedValues.FirstOrDefault(v => v.IdAttributCategorie == attr.IdAttributCategorie);
+            
+            if (attr.Obligatoire && submitted == null)
+                throw new BadRequestException($"Attribute '{attr.Nom}' is required.");
+
+            if (submitted != null)
+            {
+                var val = new ValeurAttributAnnonce { IdAttributCategorie = attr.IdAttributCategorie };
+                
+                switch (attr.TypeDonnee)
+                {
+                    case TypeDonneeAttribut.TEXTE:
+                        if (string.IsNullOrWhiteSpace(submitted.ValeurTexte)) throw new BadRequestException($"Value for '{attr.Nom}' must be text.");
+                        val.ValeurTexte = submitted.ValeurTexte;
+                        break;
+                    case TypeDonneeAttribut.NOMBRE:
+                        if (!submitted.ValeurNombre.HasValue) throw new BadRequestException($"Value for '{attr.Nom}' must be a number.");
+                        val.ValeurNombre = submitted.ValeurNombre;
+                        break;
+                    case TypeDonneeAttribut.DATE:
+                        if (!submitted.ValeurDate.HasValue) throw new BadRequestException($"Value for '{attr.Nom}' must be a date.");
+                        val.ValeurDate = submitted.ValeurDate;
+                        break;
+                    case TypeDonneeAttribut.BOOLEAN:
+                        if (!submitted.ValeurBooleen.HasValue) throw new BadRequestException($"Value for '{attr.Nom}' must be a boolean.");
+                        val.ValeurBooleen = submitted.ValeurBooleen;
+                        break;
+                    case TypeDonneeAttribut.LISTE:
+                        if (!submitted.IdOptionAttributCategorie.HasValue) throw new BadRequestException($"Value for '{attr.Nom}' must be an option ID.");
+                        var options = await _categoryRepository.GetOptionsByAttributeIdAsync(attr.IdAttributCategorie);
+                        var option = options.FirstOrDefault(o => o.IdOptionAttributCategorie == submitted.IdOptionAttributCategorie && o.EstActive);
+                        if (option == null) throw new BadRequestException($"Invalid or inactive option for '{attr.Nom}'.");
+                        val.IdOptionAttributCategorie = submitted.IdOptionAttributCategorie;
+                        break;
+                }
+                result.Add(val);
+            }
+        }
+
+        var unknown = submittedValues.Where(s => !schemaAttributes.Any(a => a.IdAttributCategorie == s.IdAttributCategorie)).ToList();
+        if (unknown.Any()) throw new BadRequestException("One or more attributes do not belong to this category.");
+
+        return result;
+    }
+
+    private async Task<PagedResponse<AnnonceDto>> MapToPagedDto(IReadOnlyList<Annonce> items, int total, int page, int size)
+    {
+        var dtos = new List<AnnonceDto>();
+        foreach (var a in items)
+        {
+            var cat = await _categoryRepository.GetByIdAsync(a.IdCategorie);
+            var images = await _annonceRepository.GetImagesByAnnonceIdAsync(a.IdAnnonce);
+            var mainImage = images.FirstOrDefault(i => i.EstPrincipale)?.Url ?? images.FirstOrDefault()?.Url;
+
+            dtos.Add(new AnnonceDto
+            {
+                IdAnnonce = a.IdAnnonce,
+                IdUtilisateur = a.IdUtilisateur,
+                IdCategorie = a.IdCategorie,
+                CategorieNom = cat?.Nom ?? "Unknown",
+                Titre = a.Titre,
+                Prix = a.Prix,
+                Localisation = a.Localisation,
+                Statut = a.Statut.ToString(),
+                DateCreation = a.DateCreation,
+                MainImageUrl = mainImage
+            });
+        }
+        return new PagedResponse<AnnonceDto>(dtos, total, page, size);
+    }
+}
+
+
 --- FILE: Services\Auth\AuthService.cs ---
 
 using System;
@@ -1822,6 +3501,113 @@ public class AuthService : IAuthService
                 PhotoProfilUrl = user.PhotoProfilUrl,
                 Adresse = user.Adresse
             }
+        };
+    }
+}
+
+
+--- FILE: Services\Categories\CategoryService.cs ---
+
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using api.Dtos.Categories;
+using api.Exceptions;
+using api.Interfaces.Categories;
+using api.Models.Enums;
+
+namespace api.Services.Categories;
+
+public class CategoryService : ICategoryService
+{
+    private readonly ICategoryRepository _repository;
+
+    public CategoryService(ICategoryRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<IReadOnlyList<CategoryDto>> GetAllCategoriesAsync()
+    {
+        var categories = await _repository.GetAllAsync();
+        return categories.Select(c => new CategoryDto
+        {
+            IdCategorie = c.IdCategorie,
+            Nom = c.Nom,
+            Description = c.Description,
+            IconKey = c.IconKey,
+            OrdreAffichage = c.OrdreAffichage
+        }).ToList();
+    }
+
+    public async Task<CategoryDetailsDto> GetCategoryByIdAsync(int id)
+    {
+        var category = await _repository.GetByIdAsync(id);
+        if (category == null) throw new NotFoundException($"Category with ID {id} not found.");
+
+        return new CategoryDetailsDto
+        {
+            IdCategorie = category.IdCategorie,
+            Nom = category.Nom,
+            Description = category.Description,
+            IconKey = category.IconKey,
+            OrdreAffichage = category.OrdreAffichage,
+            DateCreation = category.DateCreation
+        };
+    }
+
+    public async Task<IReadOnlyList<AttributeCategoryDto>> GetCategoryAttributesAsync(int id)
+    {
+        var category = await _repository.GetByIdAsync(id);
+        if (category == null) throw new NotFoundException($"Category with ID {id} not found.");
+
+        var attributes = await _repository.GetAttributesByCategoryIdAsync(id);
+        var result = new List<AttributeCategoryDto>();
+
+        foreach (var attr in attributes)
+        {
+            var attrDto = new AttributeCategoryDto
+            {
+                IdAttributCategorie = attr.IdAttributCategorie,
+                Nom = attr.Nom,
+                TypeDonnee = attr.TypeDonnee.ToString(),
+                Obligatoire = attr.Obligatoire,
+                Filtrable = attr.Filtrable,
+                OrdreAffichage = attr.OrdreAffichage,
+                Options = new List<OptionAttributeCategoryDto>()
+            };
+
+            if (attr.TypeDonnee == TypeDonneeAttribut.LISTE)
+            {
+                var options = await _repository.GetOptionsByAttributeIdAsync(attr.IdAttributCategorie);
+                attrDto.Options = options.Select(o => new OptionAttributeCategoryDto
+                {
+                    IdOptionAttributCategorie = o.IdOptionAttributCategorie,
+                    Valeur = o.Valeur,
+                    OrdreAffichage = o.OrdreAffichage
+                }).ToList();
+            }
+
+            result.Add(attrDto);
+        }
+
+        return result;
+    }
+
+    public async Task<CategorySchemaDto> GetCategorySchemaAsync(int id)
+    {
+        var category = await _repository.GetByIdAsync(id);
+        if (category == null) throw new NotFoundException($"Category with ID {id} not found.");
+
+        var attributes = await GetCategoryAttributesAsync(id);
+
+        return new CategorySchemaDto
+        {
+            IdCategorie = category.IdCategorie,
+            Nom = category.Nom,
+            Description = category.Description,
+            IconKey = category.IconKey,
+            Attributs = attributes.ToList()
         };
     }
 }
@@ -1994,16 +3780,20 @@ public interface ILocalFileStorageService
 {
     Task<(string Url, string OriginalName, string Type, long Size)> SaveDocumentAsync(IFormFile file);
     Task<string> SaveProfilePhotoAsync(IFormFile file);
+    Task<string> SaveAnnonceImageAsync(IFormFile file);
+    Task DeleteFileAsync(string relativeUrl);
 }
 
 public class LocalFileStorageService : ILocalFileStorageService
 {
+    private readonly IWebHostEnvironment _env;
     private readonly string _uploadFolder;
-    private readonly string[] _allowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png" };
+    private readonly string[] _allowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".webp" };
     private const long MaxFileSize = 5 * 1024 * 1024; // 5 MB
 
     public LocalFileStorageService(IWebHostEnvironment env)
     {
+        _env = env;
         _uploadFolder = Path.Combine(env.ContentRootPath, "Storage", "private", "advertiser-requests");
     }
 
@@ -2048,7 +3838,7 @@ public class LocalFileStorageService : ILocalFileStorageService
         if (!allowed.Contains(extension))
             throw new BadRequestException($"File extension {extension} is not allowed for photos.");
 
-        var folder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "profiles");
+        var folder = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "profiles");
         if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
 
         var fileName = $"{Guid.NewGuid():N}{extension}";
@@ -2060,6 +3850,52 @@ public class LocalFileStorageService : ILocalFileStorageService
         }
 
         return $"/uploads/profiles/{fileName}";
+    }
+
+    public async Task<string> SaveAnnonceImageAsync(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            throw new BadRequestException("Image file is required.");
+
+        if (file.Length > MaxFileSize)
+            throw new BadRequestException("Image file size must not exceed 5 MB.");
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        string[] allowed = { ".jpg", ".jpeg", ".png", ".webp" };
+        if (!allowed.Contains(extension))
+            throw new BadRequestException($"File extension {extension} is not allowed for annonces.");
+
+        string[] allowedTypes = { "image/jpeg", "image/png", "image/webp" };
+        if (!allowedTypes.Contains(file.ContentType.ToLowerInvariant()))
+            throw new BadRequestException("Invalid image content type.");
+
+        var folder = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "annonces");
+        if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+
+        var fileName = $"{Guid.NewGuid():N}{extension}";
+        var filePath = Path.Combine(folder, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        return $"/uploads/annonces/{fileName}";
+    }
+
+    public Task DeleteFileAsync(string relativeUrl)
+    {
+        if (string.IsNullOrEmpty(relativeUrl)) return Task.CompletedTask;
+
+        // Convert relative URL (e.g., /uploads/annonces/abc.jpg) to absolute path
+        var path = Path.Combine(_env.ContentRootPath, "wwwroot", relativeUrl.TrimStart('/'));
+        
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+
+        return Task.CompletedTask;
     }
 }
 

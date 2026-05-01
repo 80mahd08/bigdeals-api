@@ -12,16 +12,20 @@ public interface ILocalFileStorageService
 {
     Task<(string Url, string OriginalName, string Type, long Size)> SaveDocumentAsync(IFormFile file);
     Task<string> SaveProfilePhotoAsync(IFormFile file);
+    Task<string> SaveAnnonceImageAsync(IFormFile file);
+    Task DeleteFileAsync(string relativeUrl);
 }
 
 public class LocalFileStorageService : ILocalFileStorageService
 {
+    private readonly IWebHostEnvironment _env;
     private readonly string _uploadFolder;
-    private readonly string[] _allowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png" };
+    private readonly string[] _allowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".webp" };
     private const long MaxFileSize = 5 * 1024 * 1024; // 5 MB
 
     public LocalFileStorageService(IWebHostEnvironment env)
     {
+        _env = env;
         _uploadFolder = Path.Combine(env.ContentRootPath, "Storage", "private", "advertiser-requests");
     }
 
@@ -66,7 +70,7 @@ public class LocalFileStorageService : ILocalFileStorageService
         if (!allowed.Contains(extension))
             throw new BadRequestException($"File extension {extension} is not allowed for photos.");
 
-        var folder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "profiles");
+        var folder = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "profiles");
         if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
 
         var fileName = $"{Guid.NewGuid():N}{extension}";
@@ -78,5 +82,51 @@ public class LocalFileStorageService : ILocalFileStorageService
         }
 
         return $"/uploads/profiles/{fileName}";
+    }
+
+    public async Task<string> SaveAnnonceImageAsync(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            throw new BadRequestException("Image file is required.");
+
+        if (file.Length > MaxFileSize)
+            throw new BadRequestException("Image file size must not exceed 5 MB.");
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        string[] allowed = { ".jpg", ".jpeg", ".png", ".webp" };
+        if (!allowed.Contains(extension))
+            throw new BadRequestException($"File extension {extension} is not allowed for annonces.");
+
+        string[] allowedTypes = { "image/jpeg", "image/png", "image/webp" };
+        if (!allowedTypes.Contains(file.ContentType.ToLowerInvariant()))
+            throw new BadRequestException("Invalid image content type.");
+
+        var folder = Path.Combine(_env.ContentRootPath, "wwwroot", "uploads", "annonces");
+        if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+
+        var fileName = $"{Guid.NewGuid():N}{extension}";
+        var filePath = Path.Combine(folder, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        return $"/uploads/annonces/{fileName}";
+    }
+
+    public Task DeleteFileAsync(string relativeUrl)
+    {
+        if (string.IsNullOrEmpty(relativeUrl)) return Task.CompletedTask;
+
+        // Convert relative URL (e.g., /uploads/annonces/abc.jpg) to absolute path
+        var path = Path.Combine(_env.ContentRootPath, "wwwroot", relativeUrl.TrimStart('/'));
+        
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+
+        return Task.CompletedTask;
     }
 }

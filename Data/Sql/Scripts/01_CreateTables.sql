@@ -85,3 +85,52 @@ BEGIN
 END
 GO
 
+-- 6. Annonces
+IF OBJECT_ID('Annonces', 'U') IS NULL
+BEGIN
+    CREATE TABLE Annonces (
+        IdAnnonce BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdUtilisateur BIGINT NOT NULL,
+        IdCategorie INT NOT NULL,
+        Titre NVARCHAR(150) NOT NULL,
+        Description NVARCHAR(2000) NOT NULL,
+        Prix DECIMAL(18,3) NOT NULL,
+        Localisation NVARCHAR(255) NOT NULL,
+        Statut INT NOT NULL, -- 1=BROUILLON, 2=PUBLIEE, 3=SUSPENDUE, 4=EXPIREE, 5=SUPPRIMEE
+        DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        DatePublication DATETIME2 NULL,
+        DateExpiration DATETIME2 NULL,
+        EstActive BIT NOT NULL DEFAULT 1
+    );
+END
+GO
+
+-- 7. ValeursAttributAnnonce
+IF OBJECT_ID('ValeursAttributAnnonce', 'U') IS NULL
+BEGIN
+    CREATE TABLE ValeursAttributAnnonce (
+        IdValeurAttributAnnonce BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdAnnonce BIGINT NOT NULL,
+        IdAttributCategorie INT NOT NULL,
+        IdOptionAttributCategorie INT NULL,
+        ValeurTexte NVARCHAR(1000) NULL,
+        ValeurNombre DECIMAL(18,3) NULL,
+        ValeurDate DATE NULL,
+        ValeurBooleen BIT NULL
+    );
+END
+GO
+
+-- 8. ImagesAnnonce
+IF OBJECT_ID('ImagesAnnonce', 'U') IS NULL
+BEGIN
+    CREATE TABLE ImagesAnnonce (
+        IdImageAnnonce BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdAnnonce BIGINT NOT NULL,
+        Url NVARCHAR(500) NOT NULL,
+        OrdreAffichage INT NOT NULL DEFAULT 1,
+        EstPrincipale BIT NOT NULL DEFAULT 0,
+        DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO

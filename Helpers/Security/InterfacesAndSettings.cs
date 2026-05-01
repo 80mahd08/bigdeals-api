@@ -22,4 +22,6 @@ public interface IPasswordHasher
 public interface ICurrentUserService
 {
     long GetUserId();
+    long? Id { get; }
+    string? Role { get; }
 }

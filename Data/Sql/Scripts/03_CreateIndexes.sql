@@ -33,3 +33,19 @@ BEGIN
 END
 GO
 
+-- Annonces Indexes
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Annonces_Statut_EstActive')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Annonces_Statut_EstActive ON Annonces(Statut, EstActive);
+END
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Annonces_IdCategorie')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Annonces_IdCategorie ON Annonces(IdCategorie);
+END
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Annonces_IdUtilisateur')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Annonces_IdUtilisateur ON Annonces(IdUtilisateur);
+END
+GO
