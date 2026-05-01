@@ -73,3 +73,4 @@ E:\my work\api\obj\Debug\net8.0\api.pdb
 E:\my work\api\obj\Debug\net8.0\api.genruntimeconfig.cache
 E:\my work\api\obj\Debug\net8.0\ref\api.dll
 E:\my work\api\bin\Debug\net8.0\api.staticwebassets.runtime.json
+E:\my work\api\obj\Debug\net8.0\api.sourcelink.json

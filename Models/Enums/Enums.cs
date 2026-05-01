@@ -21,3 +21,12 @@ public enum StatutDemandeAnnonceur
     APPROUVEE = 2,
     REJETEE = 3
 }
+
+public enum TypeDonneeAttribut
+{
+    TEXTE = 1,
+    NOMBRE = 2,
+    DATE = 3,
+    BOOLEAN = 4,
+    LISTE = 5
+}

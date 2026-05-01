@@ -38,3 +38,31 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'CHK_Utilisateurs_StatutCo
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'CHK_DemandesAnnonceur_Statut' AND type = 'C')
     ALTER TABLE DemandesAnnonceur ADD CONSTRAINT CHK_DemandesAnnonceur_Statut CHECK (Statut IN (1, 2, 3));
 GO
+
+-- --- CATEGORY SCHEMA CONSTRAINTS ---
+
+-- Categories -> Nom Unique
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_Categories_Nom' AND type = 'UQ')
+    ALTER TABLE Categories ADD CONSTRAINT UQ_Categories_Nom UNIQUE (Nom);
+
+-- AttributsCategorie -> IdCategorie
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_AttributsCategorie_Categories')
+    ALTER TABLE AttributsCategorie ADD CONSTRAINT FK_AttributsCategorie_Categories FOREIGN KEY (IdCategorie) REFERENCES Categories(IdCategorie);
+
+-- AttributsCategorie -> (IdCategorie, Nom) Unique
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_AttributsCategorie_Categorie_Nom' AND type = 'UQ')
+    ALTER TABLE AttributsCategorie ADD CONSTRAINT UQ_AttributsCategorie_Categorie_Nom UNIQUE (IdCategorie, Nom);
+
+-- OptionsAttributCategorie -> IdAttributCategorie
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_OptionsAttributCategorie_AttributsCategorie')
+    ALTER TABLE OptionsAttributCategorie ADD CONSTRAINT FK_OptionsAttributCategorie_AttributsCategorie FOREIGN KEY (IdAttributCategorie) REFERENCES AttributsCategorie(IdAttributCategorie);
+
+-- OptionsAttributCategorie -> (IdAttributCategorie, Valeur) Unique
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_OptionsAttributCategorie_Attribut_Valeur' AND type = 'UQ')
+    ALTER TABLE OptionsAttributCategorie ADD CONSTRAINT UQ_OptionsAttributCategorie_Attribut_Valeur UNIQUE (IdAttributCategorie, Valeur);
+
+-- Enum TypeDonneeAttribut: 1=TEXTE, 2=NOMBRE, 3=DATE, 4=BOOLEAN, 5=LISTE
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'CHK_AttributsCategorie_TypeDonnee' AND type = 'C')
+    ALTER TABLE AttributsCategorie ADD CONSTRAINT CHK_AttributsCategorie_TypeDonnee CHECK (TypeDonnee IN (1, 2, 3, 4, 5));
+GO
+

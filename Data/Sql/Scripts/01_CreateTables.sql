@@ -40,3 +40,48 @@ BEGIN
     );
 END
 GO
+
+-- 3. Categories
+IF OBJECT_ID('Categories', 'U') IS NULL
+BEGIN
+    CREATE TABLE Categories (
+        IdCategorie INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Nom NVARCHAR(100) NOT NULL,
+        Description NVARCHAR(500) NULL,
+        IconKey NVARCHAR(100) NULL,
+        OrdreAffichage INT NOT NULL,
+        EstActive BIT NOT NULL DEFAULT 1,
+        DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+GO
+
+-- 4. AttributsCategorie
+IF OBJECT_ID('AttributsCategorie', 'U') IS NULL
+BEGIN
+    CREATE TABLE AttributsCategorie (
+        IdAttributCategorie INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdCategorie INT NOT NULL,
+        Nom NVARCHAR(100) NOT NULL,
+        TypeDonnee INT NOT NULL,
+        Obligatoire BIT NOT NULL DEFAULT 0,
+        Filtrable BIT NOT NULL DEFAULT 1,
+        OrdreAffichage INT NOT NULL,
+        EstActive BIT NOT NULL DEFAULT 1
+    );
+END
+GO
+
+-- 5. OptionsAttributCategorie
+IF OBJECT_ID('OptionsAttributCategorie', 'U') IS NULL
+BEGIN
+    CREATE TABLE OptionsAttributCategorie (
+        IdOptionAttributCategorie INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdAttributCategorie INT NOT NULL,
+        Valeur NVARCHAR(150) NOT NULL,
+        OrdreAffichage INT NOT NULL,
+        EstActive BIT NOT NULL DEFAULT 1
+    );
+END
+GO
+
