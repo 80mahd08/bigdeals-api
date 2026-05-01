@@ -1,0 +1,58 @@
+{
+  "Version": 1,
+  "Hash": "5iNmagpAnM1LWttERW88DERTGCqX4zkbbAhympF2S5E=",
+  "Source": "api",
+  "BasePath": "_content/api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "api\\wwwroot",
+      "Source": "api",
+      "ContentRoot": "E:\\my work\\api\\wwwroot\\",
+      "BasePath": "_content/api",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": [
+    {
+      "Identity": "E:\\my work\\api\\wwwroot\\uploads\\profiles\\a294ac022dcd4f44b0d09adf737715b7.png",
+      "SourceId": "api",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\my work\\api\\wwwroot\\",
+      "BasePath": "_content/api",
+      "RelativePath": "uploads/profiles/a294ac022dcd4f44b0d09adf737715b7.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\uploads\\profiles\\a294ac022dcd4f44b0d09adf737715b7.png"
+    },
+    {
+      "Identity": "E:\\my work\\api\\wwwroot\\uploads\\profiles\\ae4fa3ab0b6642308c013fa90c33eb18.png",
+      "SourceId": "api",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\my work\\api\\wwwroot\\",
+      "BasePath": "_content/api",
+      "RelativePath": "uploads/profiles/ae4fa3ab0b6642308c013fa90c33eb18.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\uploads\\profiles\\ae4fa3ab0b6642308c013fa90c33eb18.png"
+    }
+  ]
+}
