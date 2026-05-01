@@ -183,6 +183,7 @@ public class AnnonceService : IAnnonceService
             Statut = annonce.Statut.ToString(),
             DateCreation = annonce.DateCreation,
             DatePublication = annonce.DatePublication,
+            EstActive = annonce.EstActive,
             Images = images.Select(img => new ImageAnnonceDto
             {
                 IdImageAnnonce = img.IdImageAnnonce,
@@ -244,6 +245,92 @@ public class AnnonceService : IAnnonceService
 
     public async Task<bool> SuspendAnnonceAsync(long id) => await _annonceRepository.UpdateStatutAsync(id, StatutAnnonce.SUSPENDUE);
     public async Task<bool> RestoreAnnonceAsync(long id) => await _annonceRepository.UpdateStatutAsync(id, StatutAnnonce.PUBLIEE);
+
+    public async Task<PagedResponse<AnnonceDto>> SearchAnnoncesAsync(AnnonceSearchRequestDto request)
+    {
+        // 1. Pagination Normalization
+        if (request.PageNumber < 1) request.PageNumber = 1;
+        if (request.PageSize < 1) request.PageSize = 12;
+        if (request.PageSize > 50) request.PageSize = 50;
+
+        // 2. Price Validation
+        if (request.PrixMin.HasValue && request.PrixMin < 0) throw new BadRequestException("PrixMin cannot be negative.");
+        if (request.PrixMax.HasValue && request.PrixMax < 0) throw new BadRequestException("PrixMax cannot be negative.");
+        if (request.PrixMin.HasValue && request.PrixMax.HasValue && request.PrixMin > request.PrixMax)
+            throw new BadRequestException("PrixMin cannot be greater than PrixMax.");
+
+        // 3. Dynamic Filters Validation
+        if (request.FiltresDynamiques != null && request.FiltresDynamiques.Any())
+        {
+            if (!request.IdCategorie.HasValue)
+                throw new BadRequestException("Dynamic filters require a category.");
+
+            var category = await _categoryRepository.GetByIdAsync(request.IdCategorie.Value);
+            if (category == null || !category.EstActive)
+                throw new BadRequestException("Invalid or inactive category.");
+
+            var schemaAttributes = await _categoryRepository.GetAttributesByCategoryIdAsync(request.IdCategorie.Value);
+            var duplicateCheck = request.FiltresDynamiques.GroupBy(f => f.IdAttributCategorie);
+            if (duplicateCheck.Any(g => g.Count() > 1))
+                throw new BadRequestException("Duplicate dynamic filters for the same attribute are not allowed.");
+
+            foreach (var filter in request.FiltresDynamiques)
+            {
+                var attr = schemaAttributes.FirstOrDefault(a => a.IdAttributCategorie == filter.IdAttributCategorie);
+                if (attr == null)
+                    throw new BadRequestException($"Attribute ID {filter.IdAttributCategorie} does not belong to this category.");
+                if (!attr.EstActive)
+                    throw new BadRequestException($"Attribute '{attr.Nom}' is inactive.");
+                if (!attr.Filtrable)
+                    throw new BadRequestException($"Attribute '{attr.Nom}' is not marked as filtrable.");
+
+                // Validate Type Exclusivity and Field Usage
+                int providedFields = 0;
+                if (filter.IdOptionAttributCategorie.HasValue) providedFields++;
+                if (!string.IsNullOrWhiteSpace(filter.ValeurTexte)) providedFields++;
+                if (filter.ValeurNombreMin.HasValue || filter.ValeurNombreMax.HasValue) providedFields++;
+                if (filter.ValeurDateMin.HasValue || filter.ValeurDateMax.HasValue) providedFields++;
+                if (filter.ValeurBooleen.HasValue) providedFields++;
+
+                if (providedFields == 0) throw new BadRequestException($"No filter value provided for attribute '{attr.Nom}'.");
+                if (providedFields > 1) throw new BadRequestException($"Multiple filter types provided for attribute '{attr.Nom}'. Exactly one is allowed.");
+
+                switch (attr.TypeDonnee)
+                {
+                    case TypeDonneeAttribut.LISTE:
+                        if (!filter.IdOptionAttributCategorie.HasValue)
+                            throw new BadRequestException($"Attribute '{attr.Nom}' (LISTE) requires IdOptionAttributCategorie.");
+                        var options = await _categoryRepository.GetOptionsByAttributeIdAsync(attr.IdAttributCategorie);
+                        if (!options.Any(o => o.IdOptionAttributCategorie == filter.IdOptionAttributCategorie && o.EstActive))
+                            throw new BadRequestException($"Invalid or inactive option for attribute '{attr.Nom}'.");
+                        break;
+                    case TypeDonneeAttribut.TEXTE:
+                        if (string.IsNullOrWhiteSpace(filter.ValeurTexte))
+                            throw new BadRequestException($"Attribute '{attr.Nom}' (TEXTE) requires ValeurTexte.");
+                        break;
+                    case TypeDonneeAttribut.NOMBRE:
+                        if (!filter.ValeurNombreMin.HasValue && !filter.ValeurNombreMax.HasValue)
+                            throw new BadRequestException($"Attribute '{attr.Nom}' (NOMBRE) requires ValeurNombreMin or ValeurNombreMax.");
+                        if (filter.ValeurNombreMin.HasValue && filter.ValeurNombreMax.HasValue && filter.ValeurNombreMin > filter.ValeurNombreMax)
+                            throw new BadRequestException($"Min value cannot be greater than Max value for '{attr.Nom}'.");
+                        break;
+                    case TypeDonneeAttribut.DATE:
+                        if (!filter.ValeurDateMin.HasValue && !filter.ValeurDateMax.HasValue)
+                            throw new BadRequestException($"Attribute '{attr.Nom}' (DATE) requires ValeurDateMin or ValeurDateMax.");
+                        if (filter.ValeurDateMin.HasValue && filter.ValeurDateMax.HasValue && filter.ValeurDateMin > filter.ValeurDateMax)
+                            throw new BadRequestException($"Min date cannot be later than Max date for '{attr.Nom}'.");
+                        break;
+                    case TypeDonneeAttribut.BOOLEAN:
+                        if (!filter.ValeurBooleen.HasValue)
+                            throw new BadRequestException($"Attribute '{attr.Nom}' (BOOLEAN) requires ValeurBooleen.");
+                        break;
+                }
+            }
+        }
+
+        var (items, total) = await _annonceRepository.SearchAsync(request);
+        return await MapToPagedDto(items, total, request.PageNumber, request.PageSize);
+    }
 
     private async Task<List<ValeurAttributAnnonce>> ValidateAndMapAttributes(int idCategorie, List<AnnonceAttributeValueDto> submittedValues)
     {
@@ -332,16 +419,22 @@ public class AnnonceService : IAnnonceService
         var dtos = new List<AnnonceDto>();
         foreach (var a in items)
         {
-            var cat = await _categoryRepository.GetByIdAsync(a.IdCategorie);
-            var images = await _annonceRepository.GetImagesByAnnonceIdAsync(a.IdAnnonce);
-            var mainImage = images.FirstOrDefault(i => i.EstPrincipale)?.Url ?? images.FirstOrDefault()?.Url;
+            // If already populated by SearchAsync, use those values
+            string catNom = a.CategorieNom ?? (await _categoryRepository.GetByIdAsync(a.IdCategorie))?.Nom ?? "Unknown";
+            string? mainImage = a.MainImageUrl;
+            
+            if (string.IsNullOrEmpty(mainImage))
+            {
+                var images = await _annonceRepository.GetImagesByAnnonceIdAsync(a.IdAnnonce);
+                mainImage = images.FirstOrDefault(i => i.EstPrincipale)?.Url ?? images.FirstOrDefault()?.Url;
+            }
 
             dtos.Add(new AnnonceDto
             {
                 IdAnnonce = a.IdAnnonce,
                 IdUtilisateur = a.IdUtilisateur,
                 IdCategorie = a.IdCategorie,
-                CategorieNom = cat?.Nom ?? "Unknown",
+                CategorieNom = catNom,
                 Titre = a.Titre,
                 Prix = a.Prix,
                 Localisation = a.Localisation,

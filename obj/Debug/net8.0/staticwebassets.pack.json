@@ -1,8 +1,36 @@
 {
   "Files": [
     {
+      "Id": "E:\\my work\\api\\wwwroot\\app.js",
+      "PackagePath": "staticwebassets\\app.js"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\index.html",
+      "PackagePath": "staticwebassets\\index.html"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\search.html",
+      "PackagePath": "staticwebassets\\search.html"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\search.js",
+      "PackagePath": "staticwebassets\\search.js"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\style.css",
+      "PackagePath": "staticwebassets\\style.css"
+    },
+    {
       "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\1d532aaea31742b49831400161d9a5a9.jpg",
       "PackagePath": "staticwebassets\\uploads\\annonces\\1d532aaea31742b49831400161d9a5a9.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\55da4a5cdd274d2f95ae687c8c79b50f.png",
+      "PackagePath": "staticwebassets\\uploads\\annonces\\55da4a5cdd274d2f95ae687c8c79b50f.png"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\6f92e607b9104b68a7459998e5e5608a.png",
+      "PackagePath": "staticwebassets\\uploads\\annonces\\6f92e607b9104b68a7459998e5e5608a.png"
     },
     {
       "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\8663e4b94bd4425ba3155d9236fa844f.jpg",

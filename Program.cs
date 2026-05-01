@@ -21,9 +21,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.SetIsOriginAllowed(origin => true) // Allow any origin
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials(); // Allow tokens in headers
     });
 });
 
@@ -105,7 +106,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 

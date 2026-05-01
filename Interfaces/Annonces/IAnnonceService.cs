@@ -12,6 +12,7 @@ public interface IAnnonceService
     Task<bool> DeleteAnnonceAsync(long id, long currentUserId);
     Task<AnnonceDetailsDto> GetAnnonceByIdAsync(long id, long? currentUserId = null);
     Task<PagedResponse<AnnonceDto>> GetPublicAnnoncesAsync(int pageNumber, int pageSize);
+    Task<PagedResponse<AnnonceDto>> SearchAnnoncesAsync(AnnonceSearchRequestDto request);
     Task<PagedResponse<AnnonceDto>> GetUserAnnoncesAsync(long userId, int pageNumber, int pageSize);
     Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize);
     Task<bool> SuspendAnnonceAsync(long id);

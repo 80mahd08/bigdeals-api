@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explorer | BigDeals</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="mesh-bg"></div>
+    <div class="noise"></div>
+
+    <nav>
+        <div class="logo">
+            <div class="logo-icon"></div>
+            Big<span>Deals</span>
+        </div>
+        <div class="nav-links">
+            <a href="index.html">Accueil</a>
+            <a href="search.html" style="color: var(--text-main);">Explorer</a>
+            <a href="index.html" class="btn-primary">Publier</a>
+        </div>
+    </nav>
+
+    <div class="search-container">
+        <!-- Sidebar -->
+        <aside class="filters-sidebar">
+            <div class="filter-group">
+                <h3>🔍 Recherche</h3>
+                <input type="text" id="keywordInput" class="form-control" placeholder="Titre, description...">
+            </div>
+
+            <div class="filter-group">
+                <h3>📁 Catégorie</h3>
+                <select id="categorySelect" class="form-control" onchange="onCategoryChange()">
+                    <option value="">Toutes les catégories</option>
+                </select>
+            </div>
+
+            <div id="dynamicFilters">
+                <!-- Dynamic fields will be injected here -->
+            </div>
+
+            <div class="filter-group">
+                <h3>💰 Budget (TND)</h3>
+                <div class="price-range">
+                    <input type="number" id="minPrice" class="form-control" placeholder="Min">
+                    <input type="number" id="maxPrice" class="form-control" placeholder="Max">
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <h3>📍 Localisation</h3>
+                <input type="text" id="locationInput" class="form-control" placeholder="Ville...">
+            </div>
+
+            <button onclick="performSearch()" class="submit-btn">Rechercher</button>
+        </aside>
+
+        <!-- Results Area -->
+        <main class="results-area">
+            <div class="results-header">
+                <h2 id="resultsCount" class="text-gradient">Chargement...</h2>
+                <div class="sorting">
+                    <select id="sortSelect" class="sort-select" onchange="performSearch()">
+                        <option value="newest:desc">Plus récents</option>
+                        <option value="price:asc">Prix croissant</option>
+                        <option value="price:desc">Prix décroissant</option>
+                        <option value="title:asc">Titre A-Z</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="annonceGrid" class="annonce-grid">
+                <!-- Cards will be injected by search.js -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Core Logic -->
+    <script src="search.js"></script>
+</body>
+</html>

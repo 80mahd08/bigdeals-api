@@ -17,4 +17,8 @@ public class Annonce
     public DateTime? DatePublication { get; set; }
     public DateTime? DateExpiration { get; set; }
     public bool EstActive { get; set; }
+
+    // Search Result Helpers (Populated in Repository.SearchAsync)
+    public string? CategorieNom { get; set; }
+    public string? MainImageUrl { get; set; }
 }

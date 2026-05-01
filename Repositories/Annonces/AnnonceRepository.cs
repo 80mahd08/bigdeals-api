@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
+using System.Threading.Tasks;
 using api.Data.Connections;
 using api.Interfaces.Annonces;
 using api.Models;
 using api.Models.Enums;
+using System.Text;
+using api.Dtos.Annonces;
+using System.Linq;
 
 namespace api.Repositories.Annonces;
 
@@ -19,12 +21,6 @@ public class AnnonceRepository : IAnnonceRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<long> CreateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs)
-    {
-        // This method is now replaced by the one with images, but keeping it for compatibility if needed.
-        return await CreateAsync(annonce, valeurs, new List<ImageAnnonce>());
-    }
-
     public async Task<long> CreateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs, List<ImageAnnonce> images)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
@@ -35,8 +31,8 @@ public class AnnonceRepository : IAnnonceRepository
         {
             const string sqlAnnonce = @"
                 INSERT INTO Annonces (IdUtilisateur, IdCategorie, Titre, Description, Prix, Localisation, Statut, DateCreation, DatePublication, EstActive)
-                OUTPUT INSERTED.IdAnnonce
-                VALUES (@IdUtilisateur, @IdCategorie, @Titre, @Description, @Prix, @Localisation, @Statut, @DateCreation, @DatePublication, @EstActive)";
+                VALUES (@IdUtilisateur, @IdCategorie, @Titre, @Description, @Prix, @Localisation, @Statut, @DateCreation, @DatePublication, @EstActive);
+                SELECT CAST(SCOPE_IDENTITY() as BIGINT);";
 
             using var cmdAnnonce = new SqlCommand(sqlAnnonce, connection, transaction);
             cmdAnnonce.Parameters.AddWithValue("@IdUtilisateur", annonce.IdUtilisateur);
@@ -52,42 +48,34 @@ public class AnnonceRepository : IAnnonceRepository
 
             var idAnnonce = (long)await cmdAnnonce.ExecuteScalarAsync();
 
-            if (valeurs.Count > 0)
+            foreach (var v in valeurs)
             {
-                const string sqlValeur = @"
+                const string sqlVal = @"
                     INSERT INTO ValeursAttributAnnonce (IdAnnonce, IdAttributCategorie, IdOptionAttributCategorie, ValeurTexte, ValeurNombre, ValeurDate, ValeurBooleen)
                     VALUES (@IdAnnonce, @IdAttributCategorie, @IdOptionAttributCategorie, @ValeurTexte, @ValeurNombre, @ValeurDate, @ValeurBooleen)";
-
-                foreach (var v in valeurs)
-                {
-                    using var cmdValeur = new SqlCommand(sqlValeur, connection, transaction);
-                    cmdValeur.Parameters.AddWithValue("@IdAnnonce", idAnnonce);
-                    cmdValeur.Parameters.AddWithValue("@IdAttributCategorie", v.IdAttributCategorie);
-                    cmdValeur.Parameters.AddWithValue("@IdOptionAttributCategorie", (object?)v.IdOptionAttributCategorie ?? DBNull.Value);
-                    cmdValeur.Parameters.AddWithValue("@ValeurTexte", (object?)v.ValeurTexte ?? DBNull.Value);
-                    cmdValeur.Parameters.AddWithValue("@ValeurNombre", (object?)v.ValeurNombre ?? DBNull.Value);
-                    cmdValeur.Parameters.AddWithValue("@ValeurDate", (object?)v.ValeurDate ?? DBNull.Value);
-                    cmdValeur.Parameters.AddWithValue("@ValeurBooleen", (object?)v.ValeurBooleen ?? DBNull.Value);
-                    await cmdValeur.ExecuteNonQueryAsync();
-                }
+                using var cmdVal = new SqlCommand(sqlVal, connection, transaction);
+                cmdVal.Parameters.AddWithValue("@IdAnnonce", idAnnonce);
+                cmdVal.Parameters.AddWithValue("@IdAttributCategorie", v.IdAttributCategorie);
+                cmdVal.Parameters.AddWithValue("@IdOptionAttributCategorie", (object?)v.IdOptionAttributCategorie ?? DBNull.Value);
+                cmdVal.Parameters.AddWithValue("@ValeurTexte", (object?)v.ValeurTexte ?? DBNull.Value);
+                cmdVal.Parameters.AddWithValue("@ValeurNombre", (object?)v.ValeurNombre ?? DBNull.Value);
+                cmdVal.Parameters.AddWithValue("@ValeurDate", (object?)v.ValeurDate ?? DBNull.Value);
+                cmdVal.Parameters.AddWithValue("@ValeurBooleen", (object?)v.ValeurBooleen ?? DBNull.Value);
+                await cmdVal.ExecuteNonQueryAsync();
             }
 
-            if (images.Count > 0)
+            foreach (var img in images)
             {
-                const string sqlImage = @"
+                const string sqlImg = @"
                     INSERT INTO ImagesAnnonce (IdAnnonce, Url, OrdreAffichage, EstPrincipale, DateCreation)
                     VALUES (@IdAnnonce, @Url, @OrdreAffichage, @EstPrincipale, @DateCreation)";
-
-                foreach (var img in images)
-                {
-                    using var cmdImage = new SqlCommand(sqlImage, connection, transaction);
-                    cmdImage.Parameters.AddWithValue("@IdAnnonce", idAnnonce);
-                    cmdImage.Parameters.AddWithValue("@Url", img.Url);
-                    cmdImage.Parameters.AddWithValue("@OrdreAffichage", img.OrdreAffichage);
-                    cmdImage.Parameters.AddWithValue("@EstPrincipale", img.EstPrincipale);
-                    cmdImage.Parameters.AddWithValue("@DateCreation", DateTime.UtcNow);
-                    await cmdImage.ExecuteNonQueryAsync();
-                }
+                using var cmdImg = new SqlCommand(sqlImg, connection, transaction);
+                cmdImg.Parameters.AddWithValue("@IdAnnonce", idAnnonce);
+                cmdImg.Parameters.AddWithValue("@Url", img.Url);
+                cmdImg.Parameters.AddWithValue("@OrdreAffichage", img.OrdreAffichage);
+                cmdImg.Parameters.AddWithValue("@EstPrincipale", img.EstPrincipale);
+                cmdImg.Parameters.AddWithValue("@DateCreation", DateTime.UtcNow);
+                await cmdImg.ExecuteNonQueryAsync();
             }
 
             await transaction.CommitAsync();
@@ -108,53 +96,37 @@ public class AnnonceRepository : IAnnonceRepository
 
         try
         {
-            const string sqlAnnonce = @"
-                UPDATE Annonces SET 
-                    Titre = @Titre, 
-                    Description = @Description, 
-                    Prix = @Prix, 
-                    Localisation = @Localisation,
-                    DateExpiration = @DateExpiration
+            const string sqlUpdate = @"
+                UPDATE Annonces 
+                SET Titre = @Titre, Description = @Description, Prix = @Prix, Localisation = @Localisation
                 WHERE IdAnnonce = @IdAnnonce";
+            using var cmdUpdate = new SqlCommand(sqlUpdate, connection, transaction);
+            cmdUpdate.Parameters.AddWithValue("@Titre", annonce.Titre);
+            cmdUpdate.Parameters.AddWithValue("@Description", annonce.Description);
+            cmdUpdate.Parameters.AddWithValue("@Prix", annonce.Prix);
+            cmdUpdate.Parameters.AddWithValue("@Localisation", (object?)annonce.Localisation ?? DBNull.Value);
+            cmdUpdate.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
+            await cmdUpdate.ExecuteNonQueryAsync();
 
-            using var cmdAnnonce = new SqlCommand(sqlAnnonce, connection, transaction);
-            cmdAnnonce.Parameters.AddWithValue("@Titre", annonce.Titre);
-            cmdAnnonce.Parameters.AddWithValue("@Description", annonce.Description);
-            cmdAnnonce.Parameters.AddWithValue("@Prix", annonce.Prix);
-            cmdAnnonce.Parameters.AddWithValue("@Localisation", (object?)annonce.Localisation ?? DBNull.Value);
-            cmdAnnonce.Parameters.AddWithValue("@DateExpiration", (object?)annonce.DateExpiration ?? DBNull.Value);
-            cmdAnnonce.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
+            const string sqlDelVals = "DELETE FROM ValeursAttributAnnonce WHERE IdAnnonce = @IdAnnonce";
+            using var cmdDel = new SqlCommand(sqlDelVals, connection, transaction);
+            cmdDel.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
+            await cmdDel.ExecuteNonQueryAsync();
 
-            var rowsAffected = await cmdAnnonce.ExecuteNonQueryAsync();
-            if (rowsAffected == 0)
+            foreach (var v in valeurs)
             {
-                await transaction.RollbackAsync();
-                return false;
-            }
-
-            const string sqlDelete = "DELETE FROM ValeursAttributAnnonce WHERE IdAnnonce = @IdAnnonce";
-            using var cmdDelete = new SqlCommand(sqlDelete, connection, transaction);
-            cmdDelete.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
-            await cmdDelete.ExecuteNonQueryAsync();
-
-            if (valeurs.Count > 0)
-            {
-                const string sqlValeur = @"
+                const string sqlVal = @"
                     INSERT INTO ValeursAttributAnnonce (IdAnnonce, IdAttributCategorie, IdOptionAttributCategorie, ValeurTexte, ValeurNombre, ValeurDate, ValeurBooleen)
                     VALUES (@IdAnnonce, @IdAttributCategorie, @IdOptionAttributCategorie, @ValeurTexte, @ValeurNombre, @ValeurDate, @ValeurBooleen)";
-
-                foreach (var v in valeurs)
-                {
-                    using var cmdValeur = new SqlCommand(sqlValeur, connection, transaction);
-                    cmdValeur.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
-                    cmdValeur.Parameters.AddWithValue("@IdAttributCategorie", v.IdAttributCategorie);
-                    cmdValeur.Parameters.AddWithValue("@IdOptionAttributCategorie", (object?)v.IdOptionAttributCategorie ?? DBNull.Value);
-                    cmdValeur.Parameters.AddWithValue("@ValeurTexte", (object?)v.ValeurTexte ?? DBNull.Value);
-                    cmdValeur.Parameters.AddWithValue("@ValeurNombre", (object?)v.ValeurNombre ?? DBNull.Value);
-                    cmdValeur.Parameters.AddWithValue("@ValeurDate", (object?)v.ValeurDate ?? DBNull.Value);
-                    cmdValeur.Parameters.AddWithValue("@ValeurBooleen", (object?)v.ValeurBooleen ?? DBNull.Value);
-                    await cmdValeur.ExecuteNonQueryAsync();
-                }
+                using var cmdVal = new SqlCommand(sqlVal, connection, transaction);
+                cmdVal.Parameters.AddWithValue("@IdAnnonce", annonce.IdAnnonce);
+                cmdVal.Parameters.AddWithValue("@IdAttributCategorie", v.IdAttributCategorie);
+                cmdVal.Parameters.AddWithValue("@IdOptionAttributCategorie", (object?)v.IdOptionAttributCategorie ?? DBNull.Value);
+                cmdVal.Parameters.AddWithValue("@ValeurTexte", (object?)v.ValeurTexte ?? DBNull.Value);
+                cmdVal.Parameters.AddWithValue("@ValeurNombre", (object?)v.ValeurNombre ?? DBNull.Value);
+                cmdVal.Parameters.AddWithValue("@ValeurDate", (object?)v.ValeurDate ?? DBNull.Value);
+                cmdVal.Parameters.AddWithValue("@ValeurBooleen", (object?)v.ValeurBooleen ?? DBNull.Value);
+                await cmdVal.ExecuteNonQueryAsync();
             }
 
             await transaction.CommitAsync();
@@ -173,7 +145,6 @@ public class AnnonceRepository : IAnnonceRepository
         const string sql = "UPDATE Annonces SET Statut = 5, EstActive = 0 WHERE IdAnnonce = @Id";
         using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@Id", id);
-        
         await connection.OpenAsync();
         return await command.ExecuteNonQueryAsync() > 0;
     }
@@ -192,6 +163,168 @@ public class AnnonceRepository : IAnnonceRepository
             return MapToAnnonce(reader);
         }
         return null;
+    }
+
+    public async Task<(IReadOnlyList<Annonce> Items, int TotalCount)> SearchAsync(AnnonceSearchRequestDto request)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        await connection.OpenAsync();
+
+        var queryParams = new Dictionary<string, object>();
+        var whereClauses = new List<string> { "a.Statut = 2", "a.EstActive = 1" };
+
+        if (!string.IsNullOrWhiteSpace(request.Keyword))
+        {
+            whereClauses.Add("(a.Titre LIKE @Keyword OR a.Description LIKE @Keyword)");
+            queryParams.Add("@Keyword", $"%{request.Keyword}%");
+        }
+
+        if (request.IdCategorie.HasValue)
+        {
+            whereClauses.Add("a.IdCategorie = @IdCategorie");
+            queryParams.Add("@IdCategorie", request.IdCategorie.Value);
+        }
+
+        if (request.PrixMin.HasValue)
+        {
+            whereClauses.Add("a.Prix >= @PrixMin");
+            queryParams.Add("@PrixMin", request.PrixMin.Value);
+        }
+
+        if (request.PrixMax.HasValue)
+        {
+            whereClauses.Add("a.Prix <= @PrixMax");
+            queryParams.Add("@PrixMax", request.PrixMax.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Localisation))
+        {
+            whereClauses.Add("a.Localisation LIKE @Localisation");
+            queryParams.Add("@Localisation", $"%{request.Localisation}%");
+        }
+
+        if (request.FiltresDynamiques != null && request.FiltresDynamiques.Any())
+        {
+            for (int i = 0; i < request.FiltresDynamiques.Count; i++)
+            {
+                var f = request.FiltresDynamiques[i];
+                var subQuery = new StringBuilder($"(EXISTS (SELECT 1 FROM ValeursAttributAnnonce v{i} WHERE v{i}.IdAnnonce = a.IdAnnonce AND v{i}.IdAttributCategorie = @AttrId{i}");
+                queryParams.Add($"@AttrId{i}", f.IdAttributCategorie);
+
+                if (f.IdOptionAttributCategorie.HasValue)
+                {
+                    subQuery.Append($" AND v{i}.IdOptionAttributCategorie = @OptId{i}");
+                    queryParams.Add($"@OptId{i}", f.IdOptionAttributCategorie.Value);
+                }
+                else if (!string.IsNullOrWhiteSpace(f.ValeurTexte))
+                {
+                    subQuery.Append($" AND v{i}.ValeurTexte LIKE @Txt{i}");
+                    queryParams.Add($"@Txt{i}", $"%{f.ValeurTexte}%");
+                }
+                else if (f.ValeurNombreMin.HasValue || f.ValeurNombreMax.HasValue)
+                {
+                    if (f.ValeurNombreMin.HasValue)
+                    {
+                        subQuery.Append($" AND v{i}.ValeurNombre >= @NumMin{i}");
+                        queryParams.Add($"@NumMin{i}", f.ValeurNombreMin.Value);
+                    }
+                    if (f.ValeurNombreMax.HasValue)
+                    {
+                        subQuery.Append($" AND v{i}.ValeurNombre <= @NumMax{i}");
+                        queryParams.Add($"@NumMax{i}", f.ValeurNombreMax.Value);
+                    }
+                }
+                else if (f.ValeurDateMin.HasValue || f.ValeurDateMax.HasValue)
+                {
+                    if (f.ValeurDateMin.HasValue)
+                    {
+                        subQuery.Append($" AND v{i}.ValeurDate >= @DateMin{i}");
+                        queryParams.Add($"@DateMin{i}", f.ValeurDateMin.Value);
+                    }
+                    if (f.ValeurDateMax.HasValue)
+                    {
+                        subQuery.Append($" AND v{i}.ValeurDate <= @DateMax{i}");
+                        queryParams.Add($"@DateMax{i}", f.ValeurDateMax.Value);
+                    }
+                }
+                else if (f.ValeurBooleen.HasValue)
+                {
+                    subQuery.Append($" AND v{i}.ValeurBooleen = @Bool{i}");
+                    queryParams.Add($"@Bool{i}", f.ValeurBooleen.Value);
+                }
+
+                subQuery.Append("))");
+                whereClauses.Add(subQuery.ToString());
+            }
+        }
+
+        var whereSql = "WHERE " + string.Join(" AND ", whereClauses);
+
+        var sortBy = request.SortBy?.ToLower() switch
+        {
+            "price" => "a.Prix",
+            "title" => "a.Titre",
+            _ => "a.DateCreation"
+        };
+        var sortDir = request.SortDirection?.ToLower() == "asc" ? "ASC" : "DESC";
+
+        int totalCount = 0;
+        using (var countConnection = (SqlConnection)_connectionFactory.CreateConnection())
+        {
+            var countSql = $"SELECT COUNT(*) FROM Annonces a {whereSql}";
+            using var countCmd = new SqlCommand(countSql, countConnection);
+            foreach (var kvp in queryParams) countCmd.Parameters.AddWithValue(kvp.Key, kvp.Value);
+            
+            await countConnection.OpenAsync();
+            totalCount = (int)await countCmd.ExecuteScalarAsync();
+        }
+
+        var itemsSql = $@"
+            SELECT 
+                a.IdAnnonce, a.IdUtilisateur, a.IdCategorie, c.Nom AS CategorieNom, 
+                a.Titre, a.Prix, a.Localisation, a.Statut, a.DateCreation, 
+                img.Url AS MainImageUrl
+            FROM Annonces a
+            JOIN Categories c ON a.IdCategorie = c.IdCategorie
+            OUTER APPLY (
+                SELECT TOP 1 Url FROM ImagesAnnonce 
+                WHERE IdAnnonce = a.IdAnnonce 
+                ORDER BY EstPrincipale DESC, OrdreAffichage ASC
+            ) img
+            {whereSql}
+            ORDER BY {sortBy} {sortDir}
+            OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+
+        var items = new List<Annonce>();
+        using (var itemsConnection = (SqlConnection)_connectionFactory.CreateConnection())
+        {
+            using var itemsCmd = new SqlCommand(itemsSql, itemsConnection);
+            foreach (var kvp in queryParams) itemsCmd.Parameters.AddWithValue(kvp.Key, kvp.Value);
+            itemsCmd.Parameters.AddWithValue("@Offset", (request.PageNumber - 1) * request.PageSize);
+            itemsCmd.Parameters.AddWithValue("@PageSize", request.PageSize);
+            
+            await itemsConnection.OpenAsync();
+            using var reader = await itemsCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var a = new Annonce
+                {
+                    IdAnnonce = (long)reader["IdAnnonce"],
+                    IdUtilisateur = (long)reader["IdUtilisateur"],
+                    IdCategorie = (int)reader["IdCategorie"],
+                    Titre = (string)reader["Titre"],
+                    Prix = (decimal)reader["Prix"],
+                    Localisation = reader["Localisation"] == DBNull.Value ? null : (string)reader["Localisation"],
+                    Statut = (StatutAnnonce)(int)reader["Statut"],
+                    DateCreation = (DateTime)reader["DateCreation"],
+                    CategorieNom = (string)reader["CategorieNom"],
+                    MainImageUrl = reader["MainImageUrl"] == DBNull.Value ? null : (string)reader["MainImageUrl"]
+                };
+                items.Add(a);
+            }
+        }
+
+        return (items, totalCount);
     }
 
     public async Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null)
@@ -330,11 +463,5 @@ public class AnnonceRepository : IAnnonceRepository
             DateExpiration = reader["DateExpiration"] == DBNull.Value ? null : (DateTime)reader["DateExpiration"],
             EstActive = (bool)reader["EstActive"]
         };
-    }
-
-    // Overload for the interface
-    public async Task<long> CreateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs, List<ImageAnnonce> images, IDbTransaction? transaction = null)
-    {
-        return await CreateAsync(annonce, valeurs, images);
     }
 }

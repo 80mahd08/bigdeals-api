@@ -125,6 +125,14 @@ public class AnnoncesController : ControllerBase
         return Ok(ApiResponse<PagedResponse<AnnonceDto>>.Ok(result));
     }
 
+    [HttpPost("search")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> Search([FromBody] AnnonceSearchRequestDto request)
+    {
+        var result = await _service.SearchAnnoncesAsync(request);
+        return Ok(ApiResponse<PagedResponse<AnnonceDto>>.Ok(result));
+    }
+
     [HttpGet("{id}")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<AnnonceDetailsDto>>> GetById(long id)
