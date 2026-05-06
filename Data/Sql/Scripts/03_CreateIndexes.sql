@@ -49,3 +49,56 @@ BEGIN
     CREATE NONCLUSTERED INDEX IX_Annonces_IdUtilisateur ON Annonces(IdUtilisateur);
 END
 GO
+
+-- --- B9 INDEXES ---
+
+-- Favoris
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Favoris_IdUtilisateur')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Favoris_IdUtilisateur ON Favoris(IdUtilisateur);
+END
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Favoris_IdAnnonce')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Favoris_IdAnnonce ON Favoris(IdAnnonce);
+END
+
+-- AbonnementsAnnonceur
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_AbonnementsAnnonceur_IdUtilisateur')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_AbonnementsAnnonceur_IdUtilisateur ON AbonnementsAnnonceur(IdUtilisateur);
+END
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_AbonnementsAnnonceur_IdAnnonceur')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_AbonnementsAnnonceur_IdAnnonceur ON AbonnementsAnnonceur(IdAnnonceur);
+END
+
+-- ContactsAnnonceur
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ContactsAnnonceur_IdUtilisateur')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_ContactsAnnonceur_IdUtilisateur ON ContactsAnnonceur(IdUtilisateur);
+END
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ContactsAnnonceur_IdAnnonceur')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_ContactsAnnonceur_IdAnnonceur ON ContactsAnnonceur(IdAnnonceur);
+END
+GO
+
+-- 12. PasswordResetTokens
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_PasswordResetTokens_TokenHash')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_PasswordResetTokens_TokenHash ON PasswordResetTokens(TokenHash);
+END
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_PasswordResetTokens_IdUtilisateur')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_PasswordResetTokens_IdUtilisateur ON PasswordResetTokens(IdUtilisateur);
+END
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_PasswordResetTokens_DateExpiration')
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_PasswordResetTokens_DateExpiration ON PasswordResetTokens(DateExpiration);
+END
+GO

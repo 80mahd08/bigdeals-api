@@ -16,12 +16,16 @@ public class UserProfileDto
     public DateTime DateCreation { get; set; }
     public string? PhotoProfilUrl { get; set; }
     public string? Adresse { get; set; }
+    public string? Ville { get; set; }
 }
 
 public class UpdateUserProfileDto
 {
+    public string? Nom { get; set; }
+    public string? Prenom { get; set; }
     public string? Telephone { get; set; }
     public string? Adresse { get; set; }
+    public string? Ville { get; set; }
     public IFormFile? Photo { get; set; }
 }
 

@@ -14,19 +14,22 @@ public interface ILocalFileStorageService
     Task<string> SaveProfilePhotoAsync(IFormFile file);
     Task<string> SaveAnnonceImageAsync(IFormFile file);
     Task DeleteFileAsync(string relativeUrl);
+    string GetFullUrl(string? relativeUrl);
 }
 
 public class LocalFileStorageService : ILocalFileStorageService
 {
     private readonly IWebHostEnvironment _env;
     private readonly string _uploadFolder;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly string[] _allowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png", ".webp" };
     private const long MaxFileSize = 5 * 1024 * 1024; // 5 MB
 
-    public LocalFileStorageService(IWebHostEnvironment env)
+    public LocalFileStorageService(IWebHostEnvironment env, IHttpContextAccessor httpContextAccessor)
     {
         _env = env;
         _uploadFolder = Path.Combine(env.ContentRootPath, "Storage", "private", "advertiser-requests");
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<(string Url, string OriginalName, string Type, long Size)> SaveDocumentAsync(IFormFile file)
@@ -119,14 +122,23 @@ public class LocalFileStorageService : ILocalFileStorageService
     {
         if (string.IsNullOrEmpty(relativeUrl)) return Task.CompletedTask;
 
-        // Convert relative URL (e.g., /uploads/annonces/abc.jpg) to absolute path
         var path = Path.Combine(_env.ContentRootPath, "wwwroot", relativeUrl.TrimStart('/'));
-        
         if (File.Exists(path))
         {
             File.Delete(path);
         }
-
         return Task.CompletedTask;
+    }
+
+    public string GetFullUrl(string? relativeUrl)
+    {
+        if (string.IsNullOrEmpty(relativeUrl)) return string.Empty;
+        if (relativeUrl.StartsWith("http")) return relativeUrl;
+
+        var request = _httpContextAccessor.HttpContext?.Request;
+        if (request == null) return relativeUrl; // Fallback to relative
+
+        var baseUrl = $"{request.Scheme}://{request.Host}";
+        return $"{baseUrl}/{relativeUrl.TrimStart('/')}";
     }
 }

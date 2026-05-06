@@ -17,5 +17,8 @@ public class Utilisateur
     public DateTime? DerniereConnexion { get; set; }
     public string? PhotoProfilUrl { get; set; }
     public string? Adresse { get; set; }
+    public string? Ville { get; set; }
     public bool EstActif { get; set; }
+    public string? RefreshToken { get; set; }
+    public DateTime? RefreshTokenExpiry { get; set; }
 }

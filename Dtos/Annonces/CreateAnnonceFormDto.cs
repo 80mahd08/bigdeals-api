@@ -21,17 +21,14 @@ public class CreateAnnonceFormDto
     [Range(0, double.MaxValue)]
     public decimal Prix { get; set; }
     
-    [Required]
     [MaxLength(255)]
-    public string Localisation { get; set; } = string.Empty;
+    public string? Localisation { get; set; }
     
     /// <summary>
     /// JSON string(s) containing the list of AnnonceAttributeValueDto.
     /// Can be a single JSON array string or multiple JSON object strings.
     /// </summary>
-    [Required]
     public List<string> ValeursJson { get; set; } = new();
     
-    [Required]
     public List<IFormFile> Images { get; set; } = new();
 }

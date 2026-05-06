@@ -11,6 +11,7 @@ public interface IUserService
     Task ChangePasswordAsync(long idUtilisateur, ChangePasswordRequestDto request);
     Task DeleteCurrentUserAsync(long idUtilisateur);
     Task<(byte[] Content, string ContentType, string FileName)> GetProfilePhotoAsync(long idUtilisateur);
+    Task<PublicProfileDto> GetPublicProfileAsync(long idUtilisateur);
 }
 
 public interface IUserRepository

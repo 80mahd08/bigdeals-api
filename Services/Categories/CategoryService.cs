@@ -64,6 +64,8 @@ public class CategoryService : ICategoryService
                 Obligatoire = attr.Obligatoire,
                 Filtrable = attr.Filtrable,
                 OrdreAffichage = attr.OrdreAffichage,
+                Placeholder = attr.Placeholder,
+                EstPlage = attr.EstPlage,
                 Options = new List<OptionAttributeCategoryDto>()
             };
 

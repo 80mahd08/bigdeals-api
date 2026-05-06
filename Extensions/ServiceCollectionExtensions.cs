@@ -17,6 +17,16 @@ using api.Interfaces.Annonces;
 using api.Repositories.Annonces;
 using api.Services.Annonces;
 using api.Services.Storage;
+using api.Interfaces.Favorites;
+using api.Repositories.Favorites;
+using api.Services.Favorites;
+using api.Interfaces.Contacts;
+using api.Repositories.Contacts;
+using api.Services.Contacts;
+using api.Interfaces.Email;
+using api.Services.Email;
+using api.Interfaces.Admin;
+using api.Services.Admin;
 
 namespace api.Extensions;
 
@@ -39,6 +49,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDemandeAnnonceurRepository, DemandeAnnonceurRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<IAnnonceRepository, AnnonceRepository>();
+        services.AddScoped<IFavoriteRepository, FavoriteRepository>();
+        services.AddScoped<IContactRepository, ContactRepository>();
+        services.AddScoped<IAvisRepository, AvisRepository>();
 
         // Services
         services.AddScoped<IAuthService, AuthService>();
@@ -47,6 +60,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IAnnonceService, AnnonceService>();
         services.AddScoped<ILocalFileStorageService, LocalFileStorageService>();
+        services.AddScoped<IFavoriteService, FavoriteService>();
+        services.AddScoped<IContactService, ContactService>();
+        services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+        services.AddScoped<IAvisService, AvisService>();
 
         return services;
     }

@@ -17,9 +17,8 @@ public class UpdateAnnonceDto
     [Range(0, double.MaxValue)]
     public decimal Prix { get; set; }
     
-    [Required]
     [MaxLength(255)]
-    public string Localisation { get; set; } = string.Empty;
+    public string? Localisation { get; set; }
     
     public List<AnnonceAttributeValueDto> Valeurs { get; set; } = new();
 }

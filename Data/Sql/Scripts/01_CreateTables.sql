@@ -134,3 +134,56 @@ BEGIN
     );
 END
 GO
+
+-- 9. Favoris
+IF OBJECT_ID('Favoris', 'U') IS NULL
+BEGIN
+    CREATE TABLE Favoris (
+        IdFavori BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdUtilisateur BIGINT NOT NULL,
+        IdAnnonce BIGINT NOT NULL,
+        DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UNIQUE(IdUtilisateur, IdAnnonce)
+    );
+END
+GO
+
+-- 10. AbonnementsAnnonceur
+IF OBJECT_ID('AbonnementsAnnonceur', 'U') IS NULL
+BEGIN
+    CREATE TABLE AbonnementsAnnonceur (
+        IdAbonnementAnnonceur BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdUtilisateur BIGINT NOT NULL,
+        IdAnnonceur BIGINT NOT NULL,
+        DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UNIQUE(IdUtilisateur, IdAnnonceur)
+    );
+END
+GO
+
+-- 11. ContactsAnnonceur
+IF OBJECT_ID('ContactsAnnonceur', 'U') IS NULL
+BEGIN
+    CREATE TABLE ContactsAnnonceur (
+        IdContactAnnonceur BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdUtilisateur BIGINT NULL,
+        IdAnnonce BIGINT NOT NULL,
+        IdAnnonceur BIGINT NOT NULL,
+        TypeContact INT NOT NULL,
+        DateContact DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
+-- 12. PasswordResetTokens
+IF OBJECT_ID('PasswordResetTokens', 'U') IS NULL
+BEGIN
+    CREATE TABLE PasswordResetTokens (
+        IdPasswordResetToken BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        IdUtilisateur BIGINT NOT NULL,
+        TokenHash NVARCHAR(500) NOT NULL,
+        DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        DateExpiration DATETIME2 NOT NULL,
+        DateUtilisation DATETIME2 NULL,
+        EstUtilise BIT NOT NULL DEFAULT 0
+    );
+END
+GO

@@ -10,11 +10,18 @@ using api.Extensions;
 using api.Helpers.Security;
 using api.Models.Enums;
 using Microsoft.Extensions.Configuration;
+using AspNetCoreRateLimit;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
+
+builder.Services.AddHttpContextAccessor();
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -62,11 +69,17 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminOnly", policy => policy.RequireRole(RoleUtilisateur.ADMIN.ToString()));
     options.AddPolicy("ClientOnly", policy => policy.RequireRole(RoleUtilisateur.CLIENT.ToString()));
-    options.AddPolicy("AnnonceurOnly", policy => policy.RequireRole(RoleUtilisateur.ANNONCEUR.ToString()));
+    options.AddPolicy("AnnonceurOnly", policy => policy.RequireRole(RoleUtilisateur.ANNONCEUR.ToString(), RoleUtilisateur.ADMIN.ToString()));
 });
 
 // Register Application Services
 builder.Services.AddApplicationServices();
+
+// Rate Limiting
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
+builder.Services.AddInMemoryRateLimiting();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
 // Setup Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -106,11 +119,24 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-// app.UseHttpsRedirection();
-
-app.UseStaticFiles();
+app.UseIpRateLimiting();
 
 app.UseCors("AllowAll");
+
+app.UseStaticFiles(); // For wwwroot
+
+// Serve files from the 'uploads' folder
+var uploadsPath = System.IO.Path.Combine(builder.Environment.ContentRootPath, "uploads");
+if (!System.IO.Directory.Exists(uploadsPath))
+{
+    System.IO.Directory.CreateDirectory(uploadsPath);
+}
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -118,3 +144,23 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

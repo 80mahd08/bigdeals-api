@@ -113,6 +113,8 @@ public class CategoryRepository : ICategoryRepository
             Obligatoire = reader.GetBoolean(reader.GetOrdinal("Obligatoire")),
             Filtrable = reader.GetBoolean(reader.GetOrdinal("Filtrable")),
             OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage")),
+            Placeholder = reader.IsDBNull(reader.GetOrdinal("Placeholder")) ? null : reader.GetString(reader.GetOrdinal("Placeholder")),
+            EstPlage = reader.GetBoolean(reader.GetOrdinal("EstPlage")),
             EstActive = reader.GetBoolean(reader.GetOrdinal("EstActive"))
         };
     }

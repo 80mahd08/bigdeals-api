@@ -168,7 +168,8 @@ public class AnnoncesController : ControllerBase
 
     [HttpPut("{id}")]
     [Authorize(Roles = "ANNONCEUR")]
-    public async Task<ActionResult<ApiResponse<bool>>> Update(long id, UpdateAnnonceDto dto)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<bool>>> Update(long id, [FromForm] UpdateAnnonceFormDto dto)
     {
         var currentUserId = _currentUserService.GetUserId();
         await _service.UpdateAnnonceAsync(id, dto, currentUserId);
@@ -182,5 +183,29 @@ public class AnnoncesController : ControllerBase
         var currentUserId = _currentUserService.GetUserId();
         await _service.DeleteAnnonceAsync(id, currentUserId);
         return Ok(ApiResponse<bool>.Ok(true, "Annonce deleted successfully."));
+    }
+
+    [HttpPatch("{id}/suspend")]
+    [Authorize(Roles = "ANNONCEUR")]
+    public async Task<ActionResult<ApiResponse<bool>>> Suspend(long id)
+    {
+        var currentUserId = _currentUserService.GetUserId();
+        var existing = await _service.GetAnnonceByIdAsync(id, currentUserId);
+        if (existing.IdUtilisateur != currentUserId) throw new ForbiddenException("You don't own this annonce.");
+
+        await _service.SuspendAnnonceAsync(id);
+        return Ok(ApiResponse<bool>.Ok(true, "Annonce suspendue avec succès."));
+    }
+
+    [HttpPatch("{id}/resume")]
+    [Authorize(Roles = "ANNONCEUR")]
+    public async Task<ActionResult<ApiResponse<bool>>> Resume(long id)
+    {
+        var currentUserId = _currentUserService.GetUserId();
+        var existing = await _service.GetAnnonceByIdAsync(id, currentUserId);
+        if (existing.IdUtilisateur != currentUserId) throw new ForbiddenException("You don't own this annonce.");
+
+        await _service.RestoreAnnonceAsync(id);
+        return Ok(ApiResponse<bool>.Ok(true, "Annonce publiée avec succès."));
     }
 }

@@ -33,9 +33,12 @@ public enum TypeDonneeAttribut
 
 public enum StatutAnnonce
 {
-    BROUILLON = 1,
-    PUBLIEE = 2,
-    SUSPENDUE = 3,
-    EXPIREE = 4,
-    SUPPRIMEE = 5
+    PUBLIEE = 1,
+    SUSPENDUE = 2
+}
+
+public enum TypeContact
+{
+    TELEPHONE = 1,
+    WHATSAPP = 2
 }

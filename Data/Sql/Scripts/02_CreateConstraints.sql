@@ -103,3 +103,43 @@ IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'CHK_Annonces_Statut' AND 
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_ValeursAttributAnnonce_Annonce_Attribut' AND type = 'UQ')
     ALTER TABLE ValeursAttributAnnonce ADD CONSTRAINT UQ_ValeursAttributAnnonce_Annonce_Attribut UNIQUE (IdAnnonce, IdAttributCategorie);
 GO
+
+-- --- B9 CONSTRAINTS ---
+
+-- Favoris -> Utilisateurs
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Favoris_Utilisateurs')
+    ALTER TABLE Favoris ADD CONSTRAINT FK_Favoris_Utilisateurs FOREIGN KEY (IdUtilisateur) REFERENCES Utilisateurs(IdUtilisateur);
+
+-- Favoris -> Annonces
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Favoris_Annonces')
+    ALTER TABLE Favoris ADD CONSTRAINT FK_Favoris_Annonces FOREIGN KEY (IdAnnonce) REFERENCES Annonces(IdAnnonce);
+
+-- AbonnementsAnnonceur -> Utilisateurs (Follower)
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_AbonnementsAnnonceur_Utilisateurs')
+    ALTER TABLE AbonnementsAnnonceur ADD CONSTRAINT FK_AbonnementsAnnonceur_Utilisateurs FOREIGN KEY (IdUtilisateur) REFERENCES Utilisateurs(IdUtilisateur);
+
+-- AbonnementsAnnonceur -> Utilisateurs (Target Annonceur)
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_AbonnementsAnnonceur_Annonceurs')
+    ALTER TABLE AbonnementsAnnonceur ADD CONSTRAINT FK_AbonnementsAnnonceur_Annonceurs FOREIGN KEY (IdAnnonceur) REFERENCES Utilisateurs(IdUtilisateur);
+
+-- ContactsAnnonceur -> Utilisateurs (Nullable Follower)
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ContactsAnnonceur_Utilisateurs')
+    ALTER TABLE ContactsAnnonceur ADD CONSTRAINT FK_ContactsAnnonceur_Utilisateurs FOREIGN KEY (IdUtilisateur) REFERENCES Utilisateurs(IdUtilisateur);
+
+-- ContactsAnnonceur -> Annonces
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ContactsAnnonceur_Annonces')
+    ALTER TABLE ContactsAnnonceur ADD CONSTRAINT FK_ContactsAnnonceur_Annonces FOREIGN KEY (IdAnnonce) REFERENCES Annonces(IdAnnonce);
+
+-- ContactsAnnonceur -> Utilisateurs (Annonceur)
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ContactsAnnonceur_Annonceurs')
+    ALTER TABLE ContactsAnnonceur ADD CONSTRAINT FK_ContactsAnnonceur_Annonceurs FOREIGN KEY (IdAnnonceur) REFERENCES Utilisateurs(IdUtilisateur);
+
+-- Enum TypeContact: 1=TELEPHONE, 2=WHATSAPP
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'CHK_ContactsAnnonceur_TypeContact' AND type = 'C')
+    ALTER TABLE ContactsAnnonceur ADD CONSTRAINT CHK_ContactsAnnonceur_TypeContact CHECK (TypeContact IN (1, 2));
+GO
+
+-- 12. PasswordResetTokens
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_PasswordResetTokens_Utilisateurs')
+    ALTER TABLE PasswordResetTokens ADD CONSTRAINT FK_PasswordResetTokens_Utilisateurs FOREIGN KEY (IdUtilisateur) REFERENCES Utilisateurs(IdUtilisateur);
+GO

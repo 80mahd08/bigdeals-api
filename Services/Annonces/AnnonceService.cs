@@ -21,15 +21,18 @@ public class AnnonceService : IAnnonceService
     private readonly IAnnonceRepository _annonceRepository;
     private readonly ICategoryRepository _categoryRepository;
     private readonly ILocalFileStorageService _storageService;
+    private readonly IUserRepository _userRepository;
 
     public AnnonceService(
         IAnnonceRepository annonceRepository, 
         ICategoryRepository categoryRepository,
-        ILocalFileStorageService storageService)
+        ILocalFileStorageService storageService,
+        IUserRepository userRepository)
     {
         _annonceRepository = annonceRepository;
         _categoryRepository = categoryRepository;
         _storageService = storageService;
+        _userRepository = userRepository;
     }
 
     public async Task<long> CreateAnnonceAsync(CreateAnnonceFormDto dto, long currentUserId)
@@ -39,7 +42,20 @@ public class AnnonceService : IAnnonceService
         if (category == null || !category.EstActive)
             throw new BadRequestException("Invalid or inactive category.");
 
-        // 2. Deserialize and Validate Dynamic Attributes
+        // 1b. Validate Price (Must be > 0)
+        if (dto.Prix <= 0)
+            throw new BadRequestException("Le prix doit être supérieur à 0. Les annonces gratuites ne sont pas autorisées.");
+
+        // 2. Validate Announcer Info (Address and Telephone required for publication)
+        var announcer = await _userRepository.GetByIdAsync(currentUserId);
+        if (announcer == null) throw new NotFoundException("User not found.");
+        
+        if (string.IsNullOrWhiteSpace(announcer.Telephone) || string.IsNullOrWhiteSpace(announcer.Adresse))
+        {
+            throw new BadRequestException("Vous devez renseigner votre numéro de téléphone et votre adresse dans votre profil avant de pouvoir publier une annonce.");
+        }
+
+        // 3. Deserialize and Validate Dynamic Attributes
         List<AnnonceAttributeValueDto> submittedValues = new();
         
         if (dto.ValeursJson != null && dto.ValeursJson.Count > 0)
@@ -83,20 +99,24 @@ public class AnnonceService : IAnnonceService
 
         var values = await ValidateAndMapAttributes(dto.IdCategorie, submittedValues);
 
-        // 3. Validate Images (Min 1, Max 8)
+        // 3. Validate Images (Mandatory)
         if (dto.Images == null || dto.Images.Count == 0)
-            throw new BadRequestException("At least one image is required.");
+            throw new BadRequestException("Au moins une image est requise pour publier cette annonce.");
+            
         if (dto.Images.Count > 8)
             throw new BadRequestException("Maximum 8 images allowed.");
 
-        // 4. Save Images to Filesystem
+        // 4. Save Images to Filesystem (if any)
         var savedImageUrls = new List<string>();
         try
         {
-            foreach (var file in dto.Images)
+            if (dto.Images != null && dto.Images.Count > 0)
             {
-                var url = await _storageService.SaveAnnonceImageAsync(file);
-                savedImageUrls.Add(url);
+                foreach (var file in dto.Images)
+                {
+                    var url = await _storageService.SaveAnnonceImageAsync(file);
+                    savedImageUrls.Add(url);
+                }
             }
 
             // 5. Map and Save to Database (Transactional)
@@ -107,7 +127,7 @@ public class AnnonceService : IAnnonceService
                 Titre = dto.Titre,
                 Description = dto.Description,
                 Prix = dto.Prix,
-                Localisation = dto.Localisation,
+                Localisation = announcer.Ville ?? "Non renseignée",
                 Statut = StatutAnnonce.PUBLIEE,
                 DateCreation = DateTime.UtcNow,
                 DatePublication = DateTime.UtcNow,
@@ -134,20 +154,124 @@ public class AnnonceService : IAnnonceService
         }
     }
 
-    public async Task<bool> UpdateAnnonceAsync(long id, UpdateAnnonceDto dto, long currentUserId)
+    public async Task<bool> UpdateAnnonceAsync(long id, UpdateAnnonceFormDto dto, long currentUserId)
     {
         var existing = await _annonceRepository.GetByIdAsync(id);
         if (existing == null) throw new NotFoundException("Annonce not found.");
         if (existing.IdUtilisateur != currentUserId) throw new ForbiddenException("You don't own this annonce.");
 
-        var values = await ValidateAndMapAttributes(existing.IdCategorie, dto.Valeurs);
+        // Validate Announcer Info
+        var announcer = await _userRepository.GetByIdAsync(currentUserId);
+        if (announcer == null) throw new NotFoundException("User not found.");
 
+        if (string.IsNullOrWhiteSpace(announcer.Telephone) || string.IsNullOrWhiteSpace(announcer.Adresse))
+        {
+            throw new BadRequestException("Vous devez renseigner votre numéro de téléphone et votre adresse dans votre profil avant de pouvoir modifier une annonce.");
+        }
+
+        // 1. Parse and Validate Dynamic Attributes
+        List<AnnonceAttributeValueDto> submittedValues = new();
+        if (dto.ValeursJson != null && dto.ValeursJson.Count > 0)
+        {
+            foreach (var json in dto.ValeursJson)
+            {
+                try
+                {
+                    if (json.Trim().StartsWith("["))
+                    {
+                        var list = System.Text.Json.JsonSerializer.Deserialize<List<AnnonceAttributeValueDto>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (list != null) submittedValues.AddRange(list);
+                    }
+                    else
+                    {
+                        var item = System.Text.Json.JsonSerializer.Deserialize<AnnonceAttributeValueDto>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (item != null) submittedValues.Add(item);
+                    }
+                }
+                catch (System.Text.Json.JsonException ex)
+                {
+                    throw new BadRequestException($"Invalid JSON format for valeursJson: {ex.Message}");
+                }
+            }
+        }
+
+        var values = await ValidateAndMapAttributes(existing.IdCategorie, submittedValues);
+
+        // 2. Validate that at least one image remains
+        var currentImages = await _annonceRepository.GetImagesByAnnonceIdAsync(id);
+        int remainingImagesCount = currentImages.Count - (dto.ImagesToDelete?.Count ?? 0) + (dto.NewImages?.Count ?? 0);
+        if (remainingImagesCount <= 0)
+        {
+            throw new BadRequestException("Au moins une image est requise. Vous ne pouvez pas supprimer toutes les images d'une annonce.");
+        }
+
+        // 3. Handle Image Deletions
+        if (dto.ImagesToDelete != null && dto.ImagesToDelete.Count > 0)
+        {
+            var existingImages = await _annonceRepository.GetImagesByAnnonceIdAsync(id);
+            foreach (var imageId in dto.ImagesToDelete)
+            {
+                var img = existingImages.FirstOrDefault(i => i.IdImageAnnonce == imageId);
+                if (img != null)
+                {
+                    await _storageService.DeleteFileAsync(img.Url);
+                    // Note: We need a way to delete specific images from repo. 
+                    // I'll update AnnonceRepository later or use a custom query.
+                }
+            }
+            // For now, I'll assume UpdateAsync handles the full sync if I pass the images?
+            // Actually, I'll add a DeleteImageAsync to IAnnonceRepository.
+        }
+
+        // 3. Handle New Image Uploads
+        var newImageUrls = new List<string>();
+        if (dto.NewImages != null && dto.NewImages.Count > 0)
+        {
+            foreach (var file in dto.NewImages)
+            {
+                var url = await _storageService.SaveAnnonceImageAsync(file);
+                newImageUrls.Add(url);
+            }
+        }
+
+        // 4. Update basic info
         existing.Titre = dto.Titre;
         existing.Description = dto.Description;
         existing.Prix = dto.Prix;
-        existing.Localisation = dto.Localisation;
+        existing.Localisation = dto.Localisation ?? announcer.Adresse ?? existing.Localisation;
 
-        return await _annonceRepository.UpdateAsync(existing, values);
+        // 5. Save changes
+        // I need to update the repository to handle images as well in UpdateAsync
+        // For simplicity, let's update the basic info and attributes first.
+        var success = await _annonceRepository.UpdateAsync(existing, values);
+        
+        if (success)
+        {
+             // Handle image deletions and additions directly via repo
+             if (dto.ImagesToDelete != null && dto.ImagesToDelete.Count > 0)
+             {
+                 foreach(var imgId in dto.ImagesToDelete) 
+                    await _annonceRepository.DeleteImageAsync(imgId);
+             }
+
+             if (newImageUrls.Count > 0)
+             {
+                 var dbImages = await _annonceRepository.GetImagesByAnnonceIdAsync(id);
+                 int startOrder = dbImages.Count > 0 ? dbImages.Max(i => i.OrdreAffichage) + 1 : 1;
+                 
+                 foreach (var url in newImageUrls)
+                 {
+                     await _annonceRepository.AddImageAsync(new ImageAnnonce {
+                         IdAnnonce = id,
+                         Url = url,
+                         OrdreAffichage = startOrder++,
+                         EstPrincipale = false
+                     });
+                 }
+             }
+        }
+
+        return success;
     }
 
     public async Task<bool> DeleteAnnonceAsync(long id, long currentUserId)
@@ -155,6 +279,13 @@ public class AnnonceService : IAnnonceService
         var existing = await _annonceRepository.GetByIdAsync(id);
         if (existing == null) throw new NotFoundException("Annonce not found.");
         if (existing.IdUtilisateur != currentUserId) throw new ForbiddenException("You don't own this annonce.");
+
+        // Delete files from disk first
+        var images = await _annonceRepository.GetImagesByAnnonceIdAsync(id);
+        foreach (var img in images)
+        {
+            await _storageService.DeleteFileAsync(img.Url);
+        }
 
         return await _annonceRepository.DeleteAsync(id);
     }
@@ -169,11 +300,15 @@ public class AnnonceService : IAnnonceService
         var values = await _annonceRepository.GetValeursByAnnonceIdAsync(id);
         var images = await _annonceRepository.GetImagesByAnnonceIdAsync(id);
 
+        var user = await _userRepository.GetByIdAsync(annonce.IdUtilisateur);
+        
         var details = new AnnonceDetailsDto
         {
             IdAnnonce = annonce.IdAnnonce,
             IdUtilisateur = annonce.IdUtilisateur,
-            AnnonceurNom = $"User {annonce.IdUtilisateur}", 
+            AnnonceurNom = user != null ? $"{user.Prenom} {user.Nom}" : "Utilisateur Inconnu",
+            AnnonceurPhotoUrl = _storageService.GetFullUrl(user?.PhotoProfilUrl),
+            AnnonceurTelephone = user?.Telephone,
             IdCategorie = annonce.IdCategorie,
             CategorieNom = category?.Nom ?? "Unknown",
             Titre = annonce.Titre,
@@ -187,10 +322,12 @@ public class AnnonceService : IAnnonceService
             Images = images.Select(img => new ImageAnnonceDto
             {
                 IdImageAnnonce = img.IdImageAnnonce,
-                Url = img.Url,
+                Url = _storageService.GetFullUrl(img.Url),
                 OrdreAffichage = img.OrdreAffichage,
                 EstPrincipale = img.EstPrincipale
-            }).ToList()
+            }).ToList(),
+            MainImageUrl = _storageService.GetFullUrl(images.FirstOrDefault(i => i.EstPrincipale)?.Url ?? images.FirstOrDefault()?.Url),
+            Ville = annonce.Ville
         };
 
         foreach (var attr in attributes)
@@ -202,7 +339,7 @@ public class AnnonceService : IAnnonceService
                 switch (attr.TypeDonnee)
                 {
                     case TypeDonneeAttribut.TEXTE: readableVal = val.ValeurTexte ?? ""; break;
-                    case TypeDonneeAttribut.NOMBRE: readableVal = val.ValeurNombre?.ToString() ?? ""; break;
+                    case TypeDonneeAttribut.NOMBRE: readableVal = val.ValeurNombre?.ToString("G29") ?? ""; break;
                     case TypeDonneeAttribut.DATE: readableVal = val.ValeurDate?.ToShortDateString() ?? ""; break;
                     case TypeDonneeAttribut.BOOLEAN: readableVal = (val.ValeurBooleen ?? false) ? "Oui" : "Non"; break;
                     case TypeDonneeAttribut.LISTE:
@@ -213,11 +350,12 @@ public class AnnonceService : IAnnonceService
                         }
                         break;
                 }
-                details.Attributs.Add(new AnnonceAttributeValueDetailsDto
+                details.ValeursAttributs.Add(new AnnonceAttributeValueDetailsDto
                 {
                     IdAttributCategorie = attr.IdAttributCategorie,
                     Nom = attr.Nom,
-                    Valeur = readableVal
+                    Valeur = readableVal,
+                    ValeurId = val.IdOptionAttributCategorie
                 });
             }
         }
@@ -231,9 +369,9 @@ public class AnnonceService : IAnnonceService
         return await MapToPagedDto(items, total, pageNumber, pageSize);
     }
 
-    public async Task<PagedResponse<AnnonceDto>> GetUserAnnoncesAsync(long userId, int pageNumber, int pageSize)
+    public async Task<PagedResponse<AnnonceDto>> GetUserAnnoncesAsync(long userId, int pageNumber, int pageSize, string? keyword = null)
     {
-        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, null, null, userId);
+        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, null, null, userId, keyword);
         return await MapToPagedDto(items, total, pageNumber, pageSize);
     }
 
@@ -292,8 +430,10 @@ public class AnnonceService : IAnnonceService
                 if (filter.ValeurDateMin.HasValue || filter.ValeurDateMax.HasValue) providedFields++;
                 if (filter.ValeurBooleen.HasValue) providedFields++;
 
-                if (providedFields == 0) throw new BadRequestException($"No filter value provided for attribute '{attr.Nom}'.");
-                if (providedFields > 1) throw new BadRequestException($"Multiple filter types provided for attribute '{attr.Nom}'. Exactly one is allowed.");
+                if (providedFields == 0) continue; // Skip empty filters instead of throwing
+                
+                // For search filters, we don't need the 'Exactly one' check as strictly as for creation,
+                // but for specific types, we check consistency:
 
                 switch (attr.TypeDonnee)
                 {
@@ -420,7 +560,6 @@ public class AnnonceService : IAnnonceService
         foreach (var a in items)
         {
             // If already populated by SearchAsync, use those values
-            string catNom = a.CategorieNom ?? (await _categoryRepository.GetByIdAsync(a.IdCategorie))?.Nom ?? "Unknown";
             string? mainImage = a.MainImageUrl;
             
             if (string.IsNullOrEmpty(mainImage))
@@ -434,13 +573,17 @@ public class AnnonceService : IAnnonceService
                 IdAnnonce = a.IdAnnonce,
                 IdUtilisateur = a.IdUtilisateur,
                 IdCategorie = a.IdCategorie,
-                CategorieNom = catNom,
+                CategorieNom = a.CategorieNom ?? "Catégorie Inconnue",
                 Titre = a.Titre,
                 Prix = a.Prix,
                 Localisation = a.Localisation,
                 Statut = a.Statut.ToString(),
                 DateCreation = a.DateCreation,
-                MainImageUrl = mainImage
+                MainImageUrl = _storageService.GetFullUrl(mainImage),
+                AnnonceurNom = a.AnnonceurNom ?? "Utilisateur",
+                AnnonceurPhotoUrl = _storageService.GetFullUrl(a.AnnonceurPhotoUrl),
+                AnnonceurTelephone = a.AnnonceurTelephone,
+                Ville = a.Ville
             });
         }
         return new PagedResponse<AnnonceDto>(dtos, total, page, size);

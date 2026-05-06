@@ -23,10 +23,10 @@ public class UserAnnoncesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetMyAnnonces([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 12)
+    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetMyAnnonces([FromQuery] string? keyword, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 12)
     {
         var currentUserId = _currentUserService.GetUserId();
-        var result = await _service.GetUserAnnoncesAsync(currentUserId, pageNumber, pageSize);
+        var result = await _service.GetUserAnnoncesAsync(currentUserId, pageNumber, pageSize, keyword);
         return Ok(ApiResponse<PagedResponse<AnnonceDto>>.Ok(result));
     }
 

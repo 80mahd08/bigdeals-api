@@ -36,7 +36,8 @@ public class DemandeAnnonceurRepository : IDemandeAnnonceurRepository
         command.Parameters.AddWithValue("@DateDemande", demande.DateDemande);
 
         await ((SqlConnection)connection).OpenAsync();
-        return (long)await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync();
+        return result != null ? Convert.ToInt64(result) : 0;
     }
 
     public async Task<bool> HasPendingRequestAsync(long idUtilisateur)
@@ -46,7 +47,8 @@ public class DemandeAnnonceurRepository : IDemandeAnnonceurRepository
         command.Parameters.AddWithValue("@IdUtilisateur", idUtilisateur);
 
         await ((SqlConnection)connection).OpenAsync();
-        var count = (int)await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync();
+        var count = result != null ? Convert.ToInt32(result) : 0;
         return count > 0;
     }
 

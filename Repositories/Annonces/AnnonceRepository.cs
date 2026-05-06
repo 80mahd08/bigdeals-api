@@ -46,7 +46,8 @@ public class AnnonceRepository : IAnnonceRepository
             cmdAnnonce.Parameters.AddWithValue("@DatePublication", (object?)annonce.DatePublication ?? DBNull.Value);
             cmdAnnonce.Parameters.AddWithValue("@EstActive", annonce.EstActive);
 
-            var idAnnonce = (long)await cmdAnnonce.ExecuteScalarAsync();
+            var idAnnonceObj = await cmdAnnonce.ExecuteScalarAsync();
+            var idAnnonce = idAnnonceObj != null ? Convert.ToInt64(idAnnonceObj) : 0;
 
             foreach (var v in valeurs)
             {
@@ -142,17 +143,63 @@ public class AnnonceRepository : IAnnonceRepository
     public async Task<bool> DeleteAsync(long id)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
-        const string sql = "UPDATE Annonces SET Statut = 5, EstActive = 0 WHERE IdAnnonce = @Id";
-        using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@Id", id);
         await connection.OpenAsync();
-        return await command.ExecuteNonQueryAsync() > 0;
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            // 1. Delete favoris (if any)
+            const string sqlFavoris = "DELETE FROM Favoris WHERE IdAnnonce = @Id";
+            using var cmdFavoris = new SqlCommand(sqlFavoris, connection, transaction);
+            cmdFavoris.Parameters.AddWithValue("@Id", id);
+            await cmdFavoris.ExecuteNonQueryAsync();
+
+            // 2. Delete advertiser contacts (if any)
+            const string sqlContacts = "DELETE FROM ContactsAnnonceur WHERE IdAnnonce = @Id";
+            using var cmdContacts = new SqlCommand(sqlContacts, connection, transaction);
+            cmdContacts.Parameters.AddWithValue("@Id", id);
+            await cmdContacts.ExecuteNonQueryAsync();
+
+            // 3. Delete attribute values
+            const string sqlVals = "DELETE FROM ValeursAttributAnnonce WHERE IdAnnonce = @Id";
+            using var cmdVals = new SqlCommand(sqlVals, connection, transaction);
+            cmdVals.Parameters.AddWithValue("@Id", id);
+            await cmdVals.ExecuteNonQueryAsync();
+
+            // 2. Delete images
+            const string sqlImgs = "DELETE FROM ImagesAnnonce WHERE IdAnnonce = @Id";
+            using var cmdImgs = new SqlCommand(sqlImgs, connection, transaction);
+            cmdImgs.Parameters.AddWithValue("@Id", id);
+            await cmdImgs.ExecuteNonQueryAsync();
+
+            // 3. Delete the annonce
+            const string sqlAnnonce = "DELETE FROM Annonces WHERE IdAnnonce = @Id";
+            using var cmdAnnonce = new SqlCommand(sqlAnnonce, connection, transaction);
+            cmdAnnonce.Parameters.AddWithValue("@Id", id);
+            var result = await cmdAnnonce.ExecuteNonQueryAsync() > 0;
+
+            await transaction.CommitAsync();
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     public async Task<Annonce?> GetByIdAsync(long id)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
-        const string sql = "SELECT * FROM Annonces WHERE IdAnnonce = @Id";
+        const string sql = @"
+            SELECT a.*, 
+                   ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName,
+                   u.PhotoProfilUrl AS AdSellerPhoto,
+                   u.Telephone AS AdSellerPhone,
+                   u.Ville as AdSellerVille 
+            FROM Annonces a 
+            LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur 
+            WHERE a.IdAnnonce = @Id";
         using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@Id", id);
         
@@ -171,7 +218,7 @@ public class AnnonceRepository : IAnnonceRepository
         await connection.OpenAsync();
 
         var queryParams = new Dictionary<string, object>();
-        var whereClauses = new List<string> { "a.Statut = 2", "a.EstActive = 1" };
+        var whereClauses = new List<string> { "a.Statut = 1", "a.EstActive = 1" };
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
@@ -203,34 +250,36 @@ public class AnnonceRepository : IAnnonceRepository
             queryParams.Add("@Localisation", $"%{request.Localisation}%");
         }
 
+        var joinClauses = new StringBuilder();
         if (request.FiltresDynamiques != null && request.FiltresDynamiques.Any())
         {
             for (int i = 0; i < request.FiltresDynamiques.Count; i++)
             {
                 var f = request.FiltresDynamiques[i];
-                var subQuery = new StringBuilder($"(EXISTS (SELECT 1 FROM ValeursAttributAnnonce v{i} WHERE v{i}.IdAnnonce = a.IdAnnonce AND v{i}.IdAttributCategorie = @AttrId{i}");
+                var alias = $"v{i}";
+                joinClauses.Append($" INNER JOIN ValeursAttributAnnonce {alias} ON a.IdAnnonce = {alias}.IdAnnonce AND {alias}.IdAttributCategorie = @AttrId{i}");
                 queryParams.Add($"@AttrId{i}", f.IdAttributCategorie);
 
                 if (f.IdOptionAttributCategorie.HasValue)
                 {
-                    subQuery.Append($" AND v{i}.IdOptionAttributCategorie = @OptId{i}");
+                    joinClauses.Append($" AND {alias}.IdOptionAttributCategorie = @OptId{i}");
                     queryParams.Add($"@OptId{i}", f.IdOptionAttributCategorie.Value);
                 }
                 else if (!string.IsNullOrWhiteSpace(f.ValeurTexte))
                 {
-                    subQuery.Append($" AND v{i}.ValeurTexte LIKE @Txt{i}");
+                    joinClauses.Append($" AND {alias}.ValeurTexte LIKE @Txt{i}");
                     queryParams.Add($"@Txt{i}", $"%{f.ValeurTexte}%");
                 }
                 else if (f.ValeurNombreMin.HasValue || f.ValeurNombreMax.HasValue)
                 {
                     if (f.ValeurNombreMin.HasValue)
                     {
-                        subQuery.Append($" AND v{i}.ValeurNombre >= @NumMin{i}");
+                        joinClauses.Append($" AND {alias}.ValeurNombre >= @NumMin{i}");
                         queryParams.Add($"@NumMin{i}", f.ValeurNombreMin.Value);
                     }
                     if (f.ValeurNombreMax.HasValue)
                     {
-                        subQuery.Append($" AND v{i}.ValeurNombre <= @NumMax{i}");
+                        joinClauses.Append($" AND {alias}.ValeurNombre <= @NumMax{i}");
                         queryParams.Add($"@NumMax{i}", f.ValeurNombreMax.Value);
                     }
                 }
@@ -238,27 +287,25 @@ public class AnnonceRepository : IAnnonceRepository
                 {
                     if (f.ValeurDateMin.HasValue)
                     {
-                        subQuery.Append($" AND v{i}.ValeurDate >= @DateMin{i}");
+                        joinClauses.Append($" AND {alias}.ValeurDate >= @DateMin{i}");
                         queryParams.Add($"@DateMin{i}", f.ValeurDateMin.Value);
                     }
                     if (f.ValeurDateMax.HasValue)
                     {
-                        subQuery.Append($" AND v{i}.ValeurDate <= @DateMax{i}");
+                        joinClauses.Append($" AND {alias}.ValeurDate <= @DateMax{i}");
                         queryParams.Add($"@DateMax{i}", f.ValeurDateMax.Value);
                     }
                 }
                 else if (f.ValeurBooleen.HasValue)
                 {
-                    subQuery.Append($" AND v{i}.ValeurBooleen = @Bool{i}");
+                    joinClauses.Append($" AND {alias}.ValeurBooleen = @Bool{i}");
                     queryParams.Add($"@Bool{i}", f.ValeurBooleen.Value);
                 }
-
-                subQuery.Append("))");
-                whereClauses.Add(subQuery.ToString());
             }
         }
 
         var whereSql = "WHERE " + string.Join(" AND ", whereClauses);
+        var joinSql = joinClauses.ToString();
 
         var sortBy = request.SortBy?.ToLower() switch
         {
@@ -271,26 +318,40 @@ public class AnnonceRepository : IAnnonceRepository
         int totalCount = 0;
         using (var countConnection = (SqlConnection)_connectionFactory.CreateConnection())
         {
-            var countSql = $"SELECT COUNT(*) FROM Annonces a {whereSql}";
+            var countSql = $@"
+                SELECT COUNT(*) 
+                FROM Annonces a 
+                LEFT JOIN Categories c ON a.IdCategorie = c.IdCategorie
+                LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+                {joinSql}
+                {whereSql}";
             using var countCmd = new SqlCommand(countSql, countConnection);
             foreach (var kvp in queryParams) countCmd.Parameters.AddWithValue(kvp.Key, kvp.Value);
             
             await countConnection.OpenAsync();
-            totalCount = (int)await countCmd.ExecuteScalarAsync();
+            var countResult = await countCmd.ExecuteScalarAsync();
+            totalCount = countResult != null ? Convert.ToInt32(countResult) : 0;
         }
 
         var itemsSql = $@"
             SELECT 
-                a.IdAnnonce, a.IdUtilisateur, a.IdCategorie, c.Nom AS CategorieNom, 
+                a.IdAnnonce, a.IdUtilisateur, a.IdCategorie, 
+                ISNULL(c.Nom, 'Sans catégorie') AS AdCategoryName, 
                 a.Titre, a.Prix, a.Localisation, a.Statut, a.DateCreation, 
-                img.Url AS MainImageUrl
+                img.Url AS MainImageUrl,
+                ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName,
+                u.PhotoProfilUrl AS AdSellerPhoto,
+                u.Telephone AS AdSellerPhone,
+                u.Ville AS AdSellerVille
             FROM Annonces a
-            JOIN Categories c ON a.IdCategorie = c.IdCategorie
+            LEFT JOIN Categories c ON a.IdCategorie = c.IdCategorie
+            LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
             OUTER APPLY (
                 SELECT TOP 1 Url FROM ImagesAnnonce 
                 WHERE IdAnnonce = a.IdAnnonce 
                 ORDER BY EstPrincipale DESC, OrdreAffichage ASC
             ) img
+            {joinSql}
             {whereSql}
             ORDER BY {sortBy} {sortDir}
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
@@ -317,8 +378,12 @@ public class AnnonceRepository : IAnnonceRepository
                     Localisation = reader["Localisation"] == DBNull.Value ? null : (string)reader["Localisation"],
                     Statut = (StatutAnnonce)(int)reader["Statut"],
                     DateCreation = (DateTime)reader["DateCreation"],
-                    CategorieNom = (string)reader["CategorieNom"],
-                    MainImageUrl = reader["MainImageUrl"] == DBNull.Value ? null : (string)reader["MainImageUrl"]
+                    CategorieNom = reader["AdCategoryName"] == DBNull.Value ? "Sans catégorie" : (string)reader["AdCategoryName"],
+                    MainImageUrl = reader["MainImageUrl"] == DBNull.Value ? null : (string)reader["MainImageUrl"],
+                    AnnonceurNom = reader["AdSellerName"] == DBNull.Value ? null : (string)reader["AdSellerName"],
+                    AnnonceurPhotoUrl = reader["AdSellerPhoto"] == DBNull.Value ? null : (string)reader["AdSellerPhoto"],
+                    AnnonceurTelephone = reader["AdSellerPhone"] == DBNull.Value ? null : (string)reader["AdSellerPhone"],
+                    Ville = reader["AdSellerVille"] == DBNull.Value ? null : (string)reader["AdSellerVille"]
                 };
                 items.Add(a);
             }
@@ -327,7 +392,7 @@ public class AnnonceRepository : IAnnonceRepository
         return (items, totalCount);
     }
 
-    public async Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null)
+    public async Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null, string? keyword = null)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -337,31 +402,52 @@ public class AnnonceRepository : IAnnonceRepository
 
         if (statut.HasValue)
         {
-            whereClauses.Add("Statut = @Statut");
+            whereClauses.Add("a.Statut = @Statut");
             parameters.Add(new SqlParameter("@Statut", (int)statut.Value));
         }
         if (estActif.HasValue)
         {
-            whereClauses.Add("EstActive = @EstActive");
+            whereClauses.Add("a.EstActive = @EstActive");
             parameters.Add(new SqlParameter("@EstActive", estActif.Value));
         }
         if (idUtilisateur.HasValue)
         {
-            whereClauses.Add("IdUtilisateur = @IdUtilisateur");
+            whereClauses.Add("a.IdUtilisateur = @IdUtilisateur");
             parameters.Add(new SqlParameter("@IdUtilisateur", idUtilisateur.Value));
+        }
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            whereClauses.Add("(a.Titre LIKE @Keyword OR a.Description LIKE @Keyword)");
+            parameters.Add(new SqlParameter("@Keyword", $"%{keyword}%"));
         }
 
         string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
 
-        string countSql = $"SELECT COUNT(*) FROM Annonces {whereSql}";
+        string countSql = $"SELECT COUNT(*) FROM Annonces a {whereSql}";
         using var countCmd = new SqlCommand(countSql, connection);
         foreach (var p in parameters) countCmd.Parameters.Add(new SqlParameter(p.ParameterName, p.Value));
-        int totalCount = (int)await countCmd.ExecuteScalarAsync();
+        var totalCountObj = await countCmd.ExecuteScalarAsync();
+        int totalCount = totalCountObj != null ? Convert.ToInt32(totalCountObj) : 0;
 
         string itemsSql = $@"
-            SELECT * FROM Annonces 
+            SELECT 
+                a.*, 
+                ISNULL(c.Nom, 'Sans catégorie') AS AdCategoryName,
+                ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName, 
+                u.PhotoProfilUrl AS AdSellerPhoto,
+                u.Telephone AS AdSellerPhone,
+                u.Ville AS AdSellerVille,
+                img.Url AS MainImageUrl
+            FROM Annonces a
+            LEFT JOIN Categories c ON a.IdCategorie = c.IdCategorie
+            LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+            OUTER APPLY (
+                SELECT TOP 1 Url FROM ImagesAnnonce 
+                WHERE IdAnnonce = a.IdAnnonce 
+                ORDER BY EstPrincipale DESC, OrdreAffichage ASC
+            ) img
             {whereSql}
-            ORDER BY DateCreation DESC
+            ORDER BY a.DateCreation DESC
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
         using var itemsCmd = new SqlCommand(itemsSql, connection);
@@ -446,6 +532,36 @@ public class AnnonceRepository : IAnnonceRepository
         return await command.ExecuteNonQueryAsync() > 0;
     }
 
+    public async Task<long> AddImageAsync(ImageAnnonce image)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = @"
+            INSERT INTO ImagesAnnonce (IdAnnonce, Url, OrdreAffichage, EstPrincipale)
+            VALUES (@IdAnnonce, @Url, @OrdreAffichage, @EstPrincipale);
+            SELECT CAST(SCOPE_IDENTITY() as bigint);";
+        
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@IdAnnonce", image.IdAnnonce);
+        command.Parameters.AddWithValue("@Url", image.Url);
+        command.Parameters.AddWithValue("@OrdreAffichage", image.OrdreAffichage);
+        command.Parameters.AddWithValue("@EstPrincipale", image.EstPrincipale);
+        
+        await connection.OpenAsync();
+        var idImgObj = await command.ExecuteScalarAsync();
+        return idImgObj != null ? Convert.ToInt64(idImgObj) : 0;
+    }
+
+    public async Task<bool> DeleteImageAsync(long idImage)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = "DELETE FROM ImagesAnnonce WHERE IdImageAnnonce = @Id";
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", idImage);
+        
+        await connection.OpenAsync();
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
     private static Annonce MapToAnnonce(SqlDataReader reader)
     {
         return new Annonce
@@ -454,14 +570,33 @@ public class AnnonceRepository : IAnnonceRepository
             IdUtilisateur = (long)reader["IdUtilisateur"],
             IdCategorie = (int)reader["IdCategorie"],
             Titre = (string)reader["Titre"],
-            Description = (string)reader["Description"],
+            Description = reader.HasColumn("Description") && reader["Description"] != DBNull.Value ? (string)reader["Description"] : "",
             Prix = (decimal)reader["Prix"],
             Localisation = reader["Localisation"] == DBNull.Value ? null : (string)reader["Localisation"],
             Statut = (StatutAnnonce)(int)reader["Statut"],
             DateCreation = (DateTime)reader["DateCreation"],
-            DatePublication = reader["DatePublication"] == DBNull.Value ? null : (DateTime)reader["DatePublication"],
-            DateExpiration = reader["DateExpiration"] == DBNull.Value ? null : (DateTime)reader["DateExpiration"],
-            EstActive = (bool)reader["EstActive"]
+            DatePublication = reader.HasColumn("DatePublication") && reader["DatePublication"] != DBNull.Value ? (DateTime)reader["DatePublication"] : null,
+            DateExpiration = reader.HasColumn("DateExpiration") && reader["DateExpiration"] != DBNull.Value ? (DateTime)reader["DateExpiration"] : null,
+            EstActive = (bool)reader["EstActive"],
+            CategorieNom = reader.HasColumn("AdCategoryName") && reader["AdCategoryName"] != DBNull.Value ? (string)reader["AdCategoryName"] : null,
+            AnnonceurNom = reader.HasColumn("AdSellerName") && reader["AdSellerName"] != DBNull.Value ? (string)reader["AdSellerName"] : null,
+            AnnonceurPhotoUrl = reader.HasColumn("AdSellerPhoto") && reader["AdSellerPhoto"] != DBNull.Value ? (string)reader["AdSellerPhoto"] : null,
+            AnnonceurTelephone = reader.HasColumn("AdSellerPhone") && reader["AdSellerPhone"] != DBNull.Value ? (string)reader["AdSellerPhone"] : null,
+            MainImageUrl = reader.HasColumn("MainImageUrl") && reader["MainImageUrl"] != DBNull.Value ? (string)reader["MainImageUrl"] : null,
+            Ville = reader.HasColumn("AdSellerVille") && reader["AdSellerVille"] != DBNull.Value ? (string)reader["AdSellerVille"] : null
         };
+    }
+}
+
+public static class SqlDataReaderExtensions
+{
+    public static bool HasColumn(this SqlDataReader reader, string columnName)
+    {
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            if (reader.GetName(i).Equals(columnName, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 }

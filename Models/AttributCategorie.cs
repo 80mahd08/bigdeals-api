@@ -11,5 +11,7 @@ public class AttributCategorie
     public bool Obligatoire { get; set; }
     public bool Filtrable { get; set; }
     public int OrdreAffichage { get; set; }
+    public string? Placeholder { get; set; }
+    public bool EstPlage { get; set; }
     public bool EstActive { get; set; }
 }
