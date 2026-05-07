@@ -222,8 +222,9 @@ public class AnnonceRepository : IAnnonceRepository
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
-            whereClauses.Add("(a.Titre LIKE @Keyword OR a.Description LIKE @Keyword)");
-            queryParams.Add("@Keyword", $"%{request.Keyword}%");
+            whereClauses.Add("(a.Titre LIKE @Keyword OR a.Titre LIKE @KeywordWord OR a.Description LIKE @Keyword OR a.Description LIKE @KeywordWord)");
+            queryParams.Add("@Keyword", $"{request.Keyword}%");
+            queryParams.Add("@KeywordWord", $"% {request.Keyword}%");
         }
 
         if (request.IdCategorie.HasValue)
@@ -417,8 +418,9 @@ public class AnnonceRepository : IAnnonceRepository
         }
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            whereClauses.Add("(a.Titre LIKE @Keyword OR a.Description LIKE @Keyword)");
-            parameters.Add(new SqlParameter("@Keyword", $"%{keyword}%"));
+            whereClauses.Add("(a.Titre LIKE @Keyword OR a.Titre LIKE @KeywordWord OR a.Description LIKE @Keyword OR a.Description LIKE @KeywordWord)");
+            parameters.Add(new SqlParameter("@Keyword", $"{keyword}%"));
+            parameters.Add(new SqlParameter("@KeywordWord", $"% {keyword}%"));
         }
 
         string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";

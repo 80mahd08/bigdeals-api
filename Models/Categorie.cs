@@ -9,6 +9,5 @@ public class Categorie
     public string? Description { get; set; }
     public string? IconKey { get; set; }
     public int OrdreAffichage { get; set; }
-    public bool EstActive { get; set; }
     public DateTime DateCreation { get; set; }
 }

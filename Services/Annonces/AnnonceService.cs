@@ -39,8 +39,8 @@ public class AnnonceService : IAnnonceService
     {
         // 1. Validate Category
         var category = await _categoryRepository.GetByIdAsync(dto.IdCategorie);
-        if (category == null || !category.EstActive)
-            throw new BadRequestException("Invalid or inactive category.");
+        if (category == null)
+            throw new BadRequestException("Invalid category.");
 
         // 1b. Validate Price (Must be > 0)
         if (dto.Prix <= 0)
@@ -404,8 +404,8 @@ public class AnnonceService : IAnnonceService
                 throw new BadRequestException("Dynamic filters require a category.");
 
             var category = await _categoryRepository.GetByIdAsync(request.IdCategorie.Value);
-            if (category == null || !category.EstActive)
-                throw new BadRequestException("Invalid or inactive category.");
+            if (category == null)
+                throw new BadRequestException("Invalid category.");
 
             var schemaAttributes = await _categoryRepository.GetAttributesByCategoryIdAsync(request.IdCategorie.Value);
             var duplicateCheck = request.FiltresDynamiques.GroupBy(f => f.IdAttributCategorie);
@@ -417,10 +417,6 @@ public class AnnonceService : IAnnonceService
                 var attr = schemaAttributes.FirstOrDefault(a => a.IdAttributCategorie == filter.IdAttributCategorie);
                 if (attr == null)
                     throw new BadRequestException($"Attribute ID {filter.IdAttributCategorie} does not belong to this category.");
-                if (!attr.EstActive)
-                    throw new BadRequestException($"Attribute '{attr.Nom}' is inactive.");
-                if (!attr.Filtrable)
-                    throw new BadRequestException($"Attribute '{attr.Nom}' is not marked as filtrable.");
 
                 // Validate Type Exclusivity and Field Usage
                 int providedFields = 0;
@@ -441,8 +437,8 @@ public class AnnonceService : IAnnonceService
                         if (!filter.IdOptionAttributCategorie.HasValue)
                             throw new BadRequestException($"Attribute '{attr.Nom}' (LISTE) requires IdOptionAttributCategorie.");
                         var options = await _categoryRepository.GetOptionsByAttributeIdAsync(attr.IdAttributCategorie);
-                        if (!options.Any(o => o.IdOptionAttributCategorie == filter.IdOptionAttributCategorie && o.EstActive))
-                            throw new BadRequestException($"Invalid or inactive option for attribute '{attr.Nom}'.");
+                        if (!options.Any(o => o.IdOptionAttributCategorie == filter.IdOptionAttributCategorie))
+                            throw new BadRequestException($"Invalid option for attribute '{attr.Nom}'.");
                         break;
                     case TypeDonneeAttribut.TEXTE:
                         if (string.IsNullOrWhiteSpace(filter.ValeurTexte))
@@ -495,9 +491,6 @@ public class AnnonceService : IAnnonceService
         foreach (var attr in schemaAttributes)
         {
             var submitted = submittedValues.FirstOrDefault(v => v.IdAttributCategorie == attr.IdAttributCategorie);
-            
-            if (attr.Obligatoire && submitted == null)
-                throw new BadRequestException($"Attribute '{attr.Nom}' is required.");
 
             if (submitted != null)
             {
@@ -510,7 +503,7 @@ public class AnnonceService : IAnnonceService
                 if (submitted.ValeurBooleen.HasValue) providedFieldsCount++;
 
                 if (providedFieldsCount == 0)
-                    throw new BadRequestException($"No value provided for attribute '{attr.Nom}'.");
+                    continue; // Skip empty optional attributes
                 if (providedFieldsCount > 1)
                     throw new BadRequestException($"Multiple value fields provided for attribute '{attr.Nom}'. Exactly one is required.");
 
@@ -542,8 +535,8 @@ public class AnnonceService : IAnnonceService
                         if (!submitted.IdOptionAttributCategorie.HasValue) 
                             throw new BadRequestException($"Attribute '{attr.Nom}' expects an option ID (IdOptionAttributCategorie).");
                         var options = await _categoryRepository.GetOptionsByAttributeIdAsync(attr.IdAttributCategorie);
-                        var option = options.FirstOrDefault(o => o.IdOptionAttributCategorie == submitted.IdOptionAttributCategorie && o.EstActive);
-                        if (option == null) throw new BadRequestException($"Invalid or inactive option for '{attr.Nom}'.");
+                        var option = options.FirstOrDefault(o => o.IdOptionAttributCategorie == submitted.IdOptionAttributCategorie);
+                        if (option == null) throw new BadRequestException($"Invalid option for '{attr.Nom}'.");
                         val.IdOptionAttributCategorie = submitted.IdOptionAttributCategorie;
                         break;
                 }

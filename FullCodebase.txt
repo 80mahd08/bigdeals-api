@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AspNetCoreRateLimit" Version="5.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.25" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
@@ -77,7 +78,8 @@ EndGlobal
     "SecretKey": "SuperSecretKeyForBigDealsThatIsAtLeast32BytesLong!",
     "Issuer": "BigDeals",
     "Audience": "BigDealsUsers",
-    "ExpirationMinutes": 1440
+    "ExpirationMinutes": 1440,
+    "RefreshTokenExpirationDays": 7
   },
   "EmailSettings": {
     "SmtpHost": "smtp.gmail.com",
@@ -87,6 +89,35 @@ EndGlobal
     "FromEmail": "your-email@gmail.com",
     "FromName": "BigDeals",
     "FrontendResetPasswordUrl": "http://localhost:4200/auth/pass-create"
+  },
+  "IpRateLimiting": {
+    "EnableEndpointRateLimiting": true,
+    "StackBlockedRequests": false,
+    "RealIpHeader": "X-Real-IP",
+    "ClientIdHeader": "X-ClientId",
+    "HttpStatusCode": 429,
+    "GeneralRules": [
+      {
+        "Endpoint": "*",
+        "Period": "1m",
+        "Limit": 60
+      },
+      {
+        "Endpoint": "post:/api/auth/login",
+        "Period": "1m",
+        "Limit": 5
+      },
+      {
+        "Endpoint": "post:/api/auth/register",
+        "Period": "1m",
+        "Limit": 3
+      },
+      {
+        "Endpoint": "get:/api/annonces/search",
+        "Period": "1m",
+        "Limit": 10
+      }
+    ]
   }
 }
 
@@ -527,25 +558,31 @@ public class AnnoncesController : ControllerBase
 
 --- FILE: Controllers\AnnonceursController.cs ---
 
+using System.Linq;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using api.Common;
 using api.Interfaces.Contacts;
+using api.Interfaces.Annonces;
+using api.Dtos.Annonces;
 using api.Helpers.Security;
 
 namespace api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/annonceurs")]
 public class AnnonceursController : ControllerBase
 {
     private readonly IContactService _contactService;
+    private readonly IAvisService _avisService;
     private readonly ICurrentUserService _currentUserService;
 
-    public AnnonceursController(IContactService contactService, ICurrentUserService currentUserService)
+    public AnnonceursController(IContactService contactService, IAvisService avisService, ICurrentUserService currentUserService)
     {
         _contactService = contactService;
+        _avisService = avisService;
         _currentUserService = currentUserService;
     }
 
@@ -556,6 +593,15 @@ public class AnnonceursController : ControllerBase
         var advertiserId = _currentUserService.GetUserId();
         var contacts = await _contactService.GetMyIncomingContactsAsync(advertiserId, pageNumber, pageSize);
         return Ok(ApiResponse<object>.Ok(contacts));
+    }
+
+    [HttpGet("me/reviews")]
+    [Authorize(Policy = "AnnonceurOnly")]
+    public async Task<IActionResult> GetMyReviews()
+    {
+        var advertiserId = _currentUserService.GetUserId();
+        var reviews = await _avisService.GetByAnnonceurIdAsync(advertiserId);
+        return Ok(ApiResponse<IEnumerable<AvisDto>>.Ok(reviews));
     }
 }
 
@@ -587,6 +633,7 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Register([FromForm] RegisterRequestDto request)
     {
         var response = await _authService.RegisterAsync(request);
+        SetRefreshTokenCookie(response.RefreshToken);
         return Ok(ApiResponse<AuthResponseDto>.Ok(response, "User registered successfully."));
     }
 
@@ -595,7 +642,21 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Login([FromForm] LoginRequestDto request)
     {
         var response = await _authService.LoginAsync(request);
+        SetRefreshTokenCookie(response.RefreshToken);
         return Ok(ApiResponse<AuthResponseDto>.Ok(response, "Login successful."));
+    }
+
+    [HttpPost("refresh-token")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> RefreshToken()
+    {
+        var refreshToken = Request.Cookies["refreshToken"];
+        if (string.IsNullOrEmpty(refreshToken))
+            return BadRequest(ApiResponse<AuthResponseDto>.Fail("Refresh token is required."));
+
+        var response = await _authService.RefreshTokenAsync(refreshToken);
+        SetRefreshTokenCookie(response.RefreshToken);
+        return Ok(ApiResponse<AuthResponseDto>.Ok(response, "Token refreshed successfully."));
     }
 
     [HttpPost("forgot-password")]
@@ -612,6 +673,18 @@ public class AuthController : ControllerBase
     {
         await _authService.ResetPasswordAsync(request);
         return Ok(ApiResponse<object>.Ok(null, "Mot de passe réinitialisé avec succès."));
+    }
+
+    private void SetRefreshTokenCookie(string refreshToken)
+    {
+        var cookieOptions = new Microsoft.AspNetCore.Http.CookieOptions
+        {
+            HttpOnly = true,
+            Expires = System.DateTime.UtcNow.AddDays(7),
+            Secure = true, // Set to true in production
+            SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict
+        };
+        Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
     }
 }
 
@@ -1598,6 +1671,7 @@ public class AnnonceDetailsDto
     public long IdUtilisateur { get; set; }
     public string AnnonceurNom { get; set; } = string.Empty;
     public string? AnnonceurPhotoUrl { get; set; }
+    public string? AnnonceurTelephone { get; set; }
     public int IdCategorie { get; set; }
     public string CategorieNom { get; set; } = string.Empty;
     public string Titre { get; set; } = string.Empty;
@@ -1644,6 +1718,7 @@ public class AnnonceDto
     public string? MainImageUrl { get; set; }
     public string? AnnonceurNom { get; set; }
     public string? AnnonceurPhotoUrl { get; set; }
+    public string? AnnonceurTelephone { get; set; }
 }
 
 
@@ -1684,6 +1759,7 @@ public class AvisDto
     public int Note { get; set; }
     public string Commentaire { get; set; } = string.Empty;
     public string? PhotoProfilUrl { get; set; }
+    public string TitreAnnonce { get; set; } = string.Empty;
     public DateTime DateCreation { get; set; }
     public DateTime? DateModification { get; set; }
 }
@@ -1900,6 +1976,7 @@ public class LoginRequestDto
 public class AuthResponseDto
 {
     public string Token { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
     public api.Dtos.Users.UserProfileDto User { get; set; } = new();
 }
 
@@ -27278,6 +27355,7 @@ export interface Annonce {
   idUtilisateur: number;
   annonceurNom?: string;
   annonceurPhotoUrl?: string;
+  annonceurTelephone?: string;
   prenomUtilisateur?: string;
   nomUtilisateur?: string;
   idCategorie: number;
@@ -27698,8 +27776,8 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { AuthenticationService } from './auth.service';
 import { Annonce, ApiResponse } from '../models';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
 
 @Injectable({
@@ -27773,7 +27851,11 @@ export class AnnouncerDashboardService {
 
   getAnnouncerReviews(): Observable<any[]> {
     return this.http.get<ApiResponse<any[]>>(`${environment.apiUrl}/annonceurs/me/reviews`).pipe(
-        map(res => res.data || [])
+        map(res => res.data || []),
+        catchError((err) => {
+          console.error('Error in getAnnouncerReviews:', err);
+          return of([]);
+        })
     );
   }
 }
@@ -33825,37 +33907,43 @@ export class OrdersComponent implements OnInit {
                 } @else if (reviews.length === 0) {
                     <div class="text-center py-5">
                         <div class="avatar-lg mx-auto mb-4">
-                            <div class="avatar-title bg-light text-primary rounded-circle fs-24">
+                            <div class="avatar-title bg-light-subtle text-primary rounded-circle fs-24">
                                 <i class="ri-star-half-line"></i>
                             </div>
                         </div>
-                        <h5>Aucun avis disponible</h5>
+                        <h5 class="mt-3">Aucun avis disponible</h5>
                         <p class="text-muted">Les notes clients apparaîtront ici.</p>
                     </div>
                 } @else {
                     <div class="table-responsive">
                         <table class="table align-middle table-nowrap mb-0">
-                            <thead class="table-light">
+                            <thead class="table-active">
                                 <tr>
                                     <th scope="col">Note</th>
                                     <th scope="col">Commentaire</th>
                                     <th scope="col">Auteur</th>
                                     <th scope="col">Annonce</th>
                                     <th scope="col">Date</th>
+                                    <th scope="col">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @for (review of reviews; track review.id) {
+                                @for (review of reviews; track review.idAvis) {
                                     <tr>
                                         <td>
                                             <span class="badge bg-warning text-dark">
-                                                {{review.rating}} <i class="ri-star-fill"></i>
+                                                {{review.note}} <i class="ri-star-fill"></i>
                                             </span>
                                         </td>
-                                        <td>{{review.comment}}</td>
-                                        <td>{{review.reviewerName}}</td>
-                                        <td>{{review.adTitle}}</td>
-                                        <td>{{review.date | date:'mediumDate'}}</td>
+                                        <td>{{review.commentaire}}</td>
+                                        <td>{{review.prenomUtilisateur}} {{review.nomUtilisateur}}</td>
+                                        <td>{{review.titreAnnonce}}</td>
+                                        <td>{{review.dateCreation | date:'mediumDate'}}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-soft-danger" title="Signaler" (click)="reportReview(review)">
+                                                <i class="ri-flag-line"></i> Signaler
+                                            </button>
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -33892,10 +33980,17 @@ export class ReviewsComponent implements OnInit {
 
   loadReviews(): void {
     this.isLoading = true;
-    this.announcerService.getAnnouncerReviews().subscribe((data: any[]) => {
-      this.reviews = data;
-      this.calculateAverage();
-      this.isLoading = false;
+    this.announcerService.getAnnouncerReviews().subscribe({
+      next: (data: any[]) => {
+        this.reviews = data;
+        this.calculateAverage();
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('Error loading reviews:', err);
+        this.isLoading = false;
+        this.reviews = [];
+      }
     });
   }
 
@@ -33904,8 +33999,14 @@ export class ReviewsComponent implements OnInit {
       this.averageRating = 0;
       return;
     }
-    const sum = this.reviews.reduce((acc, r) => acc + r.rating, 0);
+    const sum = this.reviews.reduce((acc, r) => acc + r.note, 0);
     this.averageRating = sum / this.reviews.length;
+  }
+
+  reportReview(review: any): void {
+    // Placeholder for future feature
+    console.log('Reporting review:', review.idAvis);
+    alert('Ce signalement sera traité prochainement par notre équipe de modération.');
   }
 }
 
@@ -35854,7 +35955,7 @@ export class ProfileComponent implements OnInit {
             <!-- Main Image Card -->
             <div class="card card-marketplace overflow-hidden mb-4">
                 <div class="card-body p-0">
-                    <div class="product-img-slider bg-light p-4 text-center position-relative">
+                    <div class="product-img-slider bg-light-subtle p-4 text-center position-relative">
                         <img
                             [src]="currentMainImage"
                             (error)="onImageError($event)"
@@ -35886,12 +35987,12 @@ export class ProfileComponent implements OnInit {
 
             <!-- Description Card -->
             <div class="card card-marketplace mb-4">
-                <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+                <div class="card-header pt-4 px-4">
                     <h5 class="card-title mb-0 fw-bold">Description</h5>
                 </div>
 
                 <div class="card-body px-4 pb-4">
-                    <p class="text-muted fs-15 lh-base mb-0">
+                    <p class="fs-15 lh-base mb-0">
                         {{ ad.description || 'Aucune description fournie.' }}
                     </p>
                 </div>
@@ -35900,7 +36001,7 @@ export class ProfileComponent implements OnInit {
             <!-- Characteristics Card -->
             @if (ad.valeursAttributs && ad.valeursAttributs.length > 0) {
                 <div class="card card-marketplace mb-4">
-                    <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+                    <div class="card-header pt-4 px-4">
                         <h5 class="card-title mb-0 fw-bold">Caractéristiques</h5>
                     </div>
 
@@ -35908,13 +36009,13 @@ export class ProfileComponent implements OnInit {
                         <div class="row g-3">
                             @for (attr of ad.valeursAttributs; track attr.idAttributCategorie) {
                                 <div class="col-md-6">
-                                    <div class="d-flex align-items-center p-3 border rounded bg-light">
+                                    <div class="d-flex align-items-center p-3 border rounded bg-light-subtle">
                                         <span class="text-muted flex-grow-1">
                                             <i class="ri-checkbox-circle-line text-success me-2"></i>
                                             {{ attr.nom }}
                                         </span>
 
-                                        <span class="fw-bold text-dark">
+                                        <span class="fw-bold">
                                             {{ attr.valeur }}
                                         </span>
                                     </div>
@@ -35927,7 +36028,7 @@ export class ProfileComponent implements OnInit {
 
             <!-- Avis section -->
             <div class="card card-marketplace mb-4 shadow-sm border-0">
-                <div class="card-header bg-white border-bottom-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                <div class="card-header pt-4 px-4 d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0 fw-bold">Avis Clients ({{ avisList.length }})</h5>
                 </div>
 
@@ -35981,7 +36082,7 @@ export class ProfileComponent implements OnInit {
                                         
                                         @if (currentUser && currentUser.idUtilisateur === avis.idUtilisateur && isEditingAvis) {
                                             <!-- Edit Form -->
-                                            <div class="mt-2 bg-light p-3 rounded">
+                                            <div class="mt-2 bg-light-subtle p-3 rounded border">
                                                 <div class="mb-2">
                                                     <label class="form-label fs-13 text-muted mb-1">Votre note :</label>
                                                     <div class="d-flex gap-1 text-warning fs-18">
@@ -36003,7 +36104,7 @@ export class ProfileComponent implements OnInit {
                                                 </div>
                                             </div>
                                         } @else {
-                                            <p class="text-dark mb-0 lh-base">{{ avis.commentaire }}</p>
+                                            <p class="mb-0 lh-base">{{ avis.commentaire }}</p>
                                         }
                                     </div>
                                 </div>
@@ -36025,7 +36126,7 @@ export class ProfileComponent implements OnInit {
                             </div>
                         }
                     } @else {
-                        <div class="text-center py-5 mb-4 bg-light bg-opacity-50 rounded-3 border border-dashed">
+                        <div class="text-center py-5 mb-4 bg-light-subtle bg-opacity-50 rounded-3 border border-dashed">
                             <i class="ri-chat-voice-line fs-48 text-muted mb-2 d-block"></i>
                             <p class="text-muted mb-0">Aucun avis pour le moment. Soyez le premier à en laisser un !</p>
                         </div>
@@ -36033,7 +36134,7 @@ export class ProfileComponent implements OnInit {
 
                     <!-- Add Avis Form -->
                     @if (isLoggedIn && !isOwner && !myAvis) {
-                        <div class="bg-light p-4 rounded-3 border mt-4">
+                        <div class="bg-light-subtle p-4 rounded-3 border mt-4">
                             <h6 class="fw-bold mb-3">Laisser un avis</h6>
                             
                             <div class="mb-3">
@@ -36115,7 +36216,7 @@ export class ProfileComponent implements OnInit {
                             </h2>
                         </div>
 
-                        <div class="p-3 border rounded bg-light mb-4">
+                        <div class="p-3 border rounded bg-light-subtle mb-4">
                             <div class="d-flex align-items-center">
                                 <div class="flex-shrink-0">
                                     <i class="ri-map-pin-2-fill text-danger fs-20"></i>
@@ -36185,7 +36286,7 @@ export class ProfileComponent implements OnInit {
                             @if (ad.annonceurPhotoUrl) {
                                 <img [src]="ad.annonceurPhotoUrl" [alt]="ad.annonceurNom" class="img-thumbnail rounded-circle shadow-sm" style="width: 80px; height: 80px; object-fit: cover;">
                             } @else {
-                                <div class="avatar-title bg-info-subtle text-info rounded-circle fs-48 fw-bold shadow-sm border border-2 border-white d-flex align-items-center justify-content-center">
+                                <div class="avatar-title bg-info-subtle text-info rounded-circle fs-48 fw-bold shadow-sm border border-2 d-flex align-items-center justify-content-center">
                                     {{ ad.annonceurNom ? ad.annonceurNom.charAt(0).toUpperCase() : 'U' }}
                                 </div>
                             }
@@ -36477,17 +36578,27 @@ export class AdDetailComponent implements OnInit, OnDestroy {
 
 
   contactWhatsapp(): void {
-    if (this.ad) {
+    if (this.ad && this.ad.annonceurTelephone) {
       this.clientActions.logContactEvent(this.ad.idAnnonce, 'WHATSAPP').subscribe();
-      const phone = '21699000000'; // Mock phone
+      const phone = this.formatPhoneForWhatsapp(this.ad.annonceurTelephone);
       window.open(`https://wa.me/${phone}?text=Bonjour, je suis intéressé par votre annonce : ${this.ad.titre}`, '_blank');
     }
+  }
+
+  private formatPhoneForWhatsapp(phone: string): string {
+    // Remove spaces and non-digits
+    let cleaned = phone.replace(/\D/g, '');
+    // If 8 digits (Tunisia standard), prefix with 216
+    if (cleaned.length === 8) {
+      cleaned = '216' + cleaned;
+    }
+    return cleaned;
   }
 
   contactPhone(): void {
     if (this.ad) {
       this.clientActions.logContactEvent(this.ad.idAnnonce, 'PHONE').subscribe();
-      const phone = '21699000000'; // Mock phone
+      const phone = this.ad.annonceurTelephone || '21699000000';
       window.location.href = `tel:${phone}`;
     }
   }
@@ -36640,8 +36751,8 @@ export class AdDetailComponent implements OnInit, OnDestroy {
     <div class="row">
         <!-- Sidebar Filters -->
         <div class="col-xl-3 col-lg-4">
-            <div class="card card-marketplace border h-100">
-                <div class="card-header bg-light-subtle border-bottom">
+            <div class="card card-marketplace border">
+                <div class="card-header border-bottom">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
                             <h5 class="fs-16 mb-0">Filtres</h5>
@@ -36677,7 +36788,7 @@ export class AdDetailComponent implements OnInit, OnDestroy {
                     <div class="mb-4 border-top pt-3">
                         <h6 class="text-uppercase fs-12 mb-3">Localisation</h6>
                         <div ngbDropdown class="d-inline-block w-100">
-                            <button type="button" class="btn btn-outline-light border text-start w-100 d-flex align-items-center justify-content-between bg-white text-body shadow-none" id="locationDropdown" ngbDropdownToggle>
+                            <button type="button" class="btn btn-outline-light border text-start w-100 d-flex align-items-center justify-content-between bg-body-secondary text-body shadow-none" id="locationDropdown" ngbDropdownToggle>
                                 <span class="text-truncate">{{selectedLocation || 'Toute la Tunisie'}}</span>
                             </button>
                             <div ngbDropdownMenu aria-labelledby="locationDropdown" class="w-100 shadow-lg border-0 mt-1" style="max-height: 300px; overflow-y: auto;">
@@ -36782,7 +36893,7 @@ export class AdDetailComponent implements OnInit, OnDestroy {
                                 <span class="text-muted fs-14">{{textResultsFound}}</span>
                             </div>
                             <div class="search-box mt-2">
-                                <input type="text" class="form-control bg-light border-light" [placeholder]="textSearchPlaceholder" [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()">
+                                <input type="text" class="form-control bg-light-subtle border-light" [placeholder]="textSearchPlaceholder" [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()">
                                 <i class="ri-search-line search-icon"></i>
                             </div>
                         </div>
@@ -37359,7 +37470,7 @@ export class AdsListingComponent implements OnInit, OnDestroy {
             <div class="bookmark-icon position-absolute top-0 end-0 m-2" style="z-index: 2;">
                 @if (isLoggedIn) {
                     <button type="button" class="btn btn-icon btn-sm shadow-lg rounded-circle" 
-                        [ngClass]="isFavorite() ? 'btn-danger' : 'btn-white text-danger'"
+                        [ngClass]="isFavorite() ? 'btn-danger' : 'btn-light text-danger'"
                         (click)="toggleFavorite($event)">
                         <i [ngClass]="isFavorite() ? 'ri-heart-fill' : 'ri-heart-line'"></i>
                     </button>
@@ -37560,7 +37671,7 @@ export class AdCardComponent {
                     </p>
 
                     <!-- Clean Search Bar: search input + button only -->
-                    <div class="search-box-container bg-white p-3 rounded-4 shadow-lg mx-auto" style="max-width: 620px;">
+                    <div class="search-box-container bg-body p-3 rounded-4 shadow-lg mx-auto" style="max-width: 620px;">
                         <div class="row g-2 align-items-center">
                             <div class="col-md-8 col-12">
                                 <div class="input-group">
@@ -37627,7 +37738,7 @@ export class AdCardComponent {
 </section>
 
 <!-- Featured Ads Section -->
-<section class="section py-5 bg-light" id="featured">
+<section class="section py-5 bg-light-subtle" id="featured">
     <div class="container">
         <div class="row align-items-center mb-4">
             <div class="col-sm">
@@ -37880,7 +37991,7 @@ export class LandingComponent implements OnInit {
                 <div class="col-12 text-center py-5">
                     @if (searchTerm && sellerAds.length > 0) {
                         <div class="avatar-md mx-auto mb-3">
-                            <div class="avatar-title bg-light text-muted rounded-circle fs-24">
+                            <div class="avatar-title bg-light-subtle text-muted rounded-circle fs-24">
                                 <i class="ri-search-2-line"></i>
                             </div>
                         </div>
@@ -38044,8 +38155,17 @@ export class SellerProfileComponent implements OnInit, OnDestroy {
 
   contactWhatsapp() {
     if (this.seller?.telephone) {
-        window.open(`https://wa.me/${this.seller.telephone}?text=Bonjour, je vous contacte depuis BigDeals.`, '_blank');
+        const phone = this.formatPhoneForWhatsapp(this.seller.telephone);
+        window.open(`https://wa.me/${phone}?text=Bonjour, je vous contacte depuis BigDeals.`, '_blank');
     }
+  }
+
+  private formatPhoneForWhatsapp(phone: string): string {
+    let cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 8) {
+      cleaned = '216' + cleaned;
+    }
+    return cleaned;
   }
 
   contactPhone() {
@@ -114546,11 +114666,13 @@ public class JwtSettings
     public string Issuer { get; set; } = string.Empty;
     public string Audience { get; set; } = string.Empty;
     public int ExpirationMinutes { get; set; }
+    public int RefreshTokenExpirationDays { get; set; }
 }
 
 public interface IJwtTokenGenerator
 {
     string GenerateToken(long idUtilisateur, string email, string role);
+    string GenerateRefreshToken();
 }
 
 public interface IPasswordHasher
@@ -114613,6 +114735,14 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         var token = tokenHandler.CreateToken(tokenDescriptor);
 
         return tokenHandler.WriteToken(token);
+    }
+
+    public string GenerateRefreshToken()
+    {
+        var randomNumber = new byte[32];
+        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+        rng.GetBytes(randomNumber);
+        return System.Convert.ToBase64String(randomNumber);
     }
 }
 
@@ -114684,6 +114814,64 @@ public class PasswordHasher : IPasswordHasher
         }
     }
 }
+
+
+--- FILE: improvements_roadmap.md ---
+
+# BigDeals: Technical & UI/UX Improvement Roadmap
+
+This document outlines strategic suggestions to enhance the scalability, maintainability, and user experience of the BigDeals marketplace.
+
+---
+
+## 🚀 Backend & Architecture Improvements
+
+### 1. Data Access Layer Optimization
+*   **Transition to Dapper**: While raw SQL is performant, using [Dapper](https://github.com/DapperLib/Dapper) would significantly reduce boilerplate code in repositories while maintaining the "Raw SQL" performance and control you prefer.
+*   **Repository Generic Interface**: Implement a `IBaseRepository<T>` to standardize common CRUD operations (GetById, Delete, etc.) and reduce code duplication across the 15+ repositories.
+
+### 2. Security & Identity
+*   **Refresh Token Implementation**: Currently, users must log in again when their JWT expires. Implementing a Refresh Token flow (stored in a secure HttpOnly cookie) would provide a seamless session experience.
+*   **Rate Limiting**: Add middleware (like `AspNetCoreRateLimit`) to protect public endpoints (like Login, Register, and Search) from brute-force and DDoS attacks.
+
+### 3. API Consistency
+*   **Fluent Validation**: Use [FluentValidation](https://docs.fluentvalidation.net/) instead of manual checks in Services. This separates validation logic from business logic and automatically integrates with ASP.NET Core's ModelState.
+*   **AutoMapper**: Simplify the mapping between Domain Models and DTOs. Manual mapping is prone to errors as the schema grows.
+
+---
+
+## 🎨 UI/UX Design Enhancements
+
+### 1. Dashboard Interactivity
+*   **Real-time Notifications**: Use **SignalR** to push notifications to the Announcer Dashboard when a new review is received or an ad is approved.
+*   **Review Replies**: Allow advertisers to reply to customer reviews. This builds trust and improves the "social" aspect of the marketplace.
+
+### 2. Search & Discovery
+*   **Advanced Filtering Sidebar**: Replace simple dropdowns with a faceted search (e.g., checkboxes for categories, price sliders, and "Clear All" buttons).
+*   **Search Autocomplete**: Implement a debounced search input that suggests categories or ad titles as the user types.
+
+### 3. Mobile Experience
+*   **PWA Support**: Convert the Angular app into a Progressive Web App (PWA). This allows users to "install" BigDeals on their home screen and enables offline caching for faster load times on mobile networks.
+*   **Skeleton Screens**: Replace the circular loading spinners with "Skeleton" placeholders that mimic the layout of the content being loaded. This feels much faster to the user.
+
+---
+
+## 🛠️ Performance & Scalability
+
+### 1. Frontend Performance
+*   **Angular Standalone Components**: Migrate existing modules to Standalone Components to reduce bundle size and simplify the dependency tree.
+*   **Image Optimization**: Implement an image proxy (or use a library like `ngx-image-compress`) to serve WebP versions of uploaded photos, drastically reducing page weight.
+
+### 2. Database Efficiency
+*   **Full-Text Search**: Instead of `LIKE '%query%'`, implement SQL Server Full-Text Indexing on the `Titre` and `Description` columns of the `Annonces` table for significantly faster search results.
+*   **Read-Only Projections**: For heavy pages like the home page, create SQL Views or use non-tracking queries to avoid overhead.
+
+---
+
+## 📈 Future Features to Consider
+*   **Verified Badge**: A "Verified Seller" system based on identity document checks (already partially implemented).
+*   **Internal Messaging**: A real-time chat between buyers and sellers to replace the current "Contact" form.
+*   **Ad Boosting**: A payment integration (Stripe/Flouci) to allow sellers to pay for "Premium" placement of their ads.
 
 
 --- FILE: Interfaces\Admin\IAdminDashboardService.cs ---
@@ -114761,6 +114949,7 @@ public interface IAvisRepository
 {
     Task<IEnumerable<Avis>> GetByAnnonceIdAsync(long idAnnonce);
     Task<(IEnumerable<Avis> Items, int TotalCount)> GetPagedByAnnonceIdAsync(long idAnnonce, int page, int pageSize);
+    Task<IEnumerable<Avis>> GetByAnnonceurIdAsync(long idAnnonceur);
     Task<Avis?> GetByIdAsync(long idAvis);
     Task<Avis?> GetByUserAndAnnonceAsync(long idUtilisateur, long idAnnonce);
     Task<long> CreateAsync(Avis avis);
@@ -114781,6 +114970,7 @@ namespace api.Interfaces.Annonces;
 public interface IAvisService
 {
     Task<IEnumerable<AvisDto>> GetByAnnonceIdAsync(long idAnnonce);
+    Task<IEnumerable<AvisDto>> GetByAnnonceurIdAsync(long idAnnonceur);
     Task<PagedResponse<AvisDto>> GetPagedByAnnonceIdAsync(long idAnnonce, int page, int pageSize);
     Task<AvisDto> CreateAsync(long idAnnonce, long idUtilisateur, CreateAvisDto dto);
     Task<bool> UpdateAsync(long idAnnonce, long idUtilisateur, CreateAvisDto dto);
@@ -114800,6 +114990,7 @@ public interface IAuthService
 {
     Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request);
     Task<AuthResponseDto> LoginAsync(LoginRequestDto request);
+    Task<AuthResponseDto> RefreshTokenAsync(string refreshToken);
     Task ForgotPasswordAsync(ForgotPasswordRequestDto request);
     Task ResetPasswordAsync(ResetPasswordRequestDto request);
 }
@@ -114817,6 +115008,10 @@ public interface IAuthRepository
     Task MarkResetTokenAsUsedAsync(long idPasswordResetToken);
     Task UpdatePasswordHashAsync(long idUtilisateur, string newPasswordHash);
     Task<DateTime?> GetLatestResetTokenDateAsync(long idUtilisateur);
+
+    // Refresh Token
+    Task UpdateRefreshTokenAsync(long idUtilisateur, string? refreshToken, DateTime? expiry);
+    Task<Utilisateur?> GetUserByRefreshTokenAsync(string refreshToken);
 }
 
 
@@ -115037,6 +115232,7 @@ public class Annonce
     public string? MainImageUrl { get; set; }
     public string? AnnonceurNom { get; set; }
     public string? AnnonceurPhotoUrl { get; set; }
+    public string? AnnonceurTelephone { get; set; }
     public string? Ville { get; set; }
 }
 
@@ -115083,6 +115279,7 @@ public class Avis
     public string? NomUtilisateur { get; set; }
     public string? PrenomUtilisateur { get; set; }
     public string? PhotoProfilUrl { get; set; }
+    public string? TitreAnnonce { get; set; }
 }
 
 
@@ -115262,6 +115459,8 @@ public class Utilisateur
     public string? Adresse { get; set; }
     public string? Ville { get; set; }
     public bool EstActif { get; set; }
+    public string? RefreshToken { get; set; }
+    public DateTime? RefreshTokenExpiry { get; set; }
 }
 
 
@@ -115298,6 +115497,7 @@ using api.Extensions;
 using api.Helpers.Security;
 using api.Models.Enums;
 using Microsoft.Extensions.Configuration;
+using AspNetCoreRateLimit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -115356,11 +115556,17 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminOnly", policy => policy.RequireRole(RoleUtilisateur.ADMIN.ToString()));
     options.AddPolicy("ClientOnly", policy => policy.RequireRole(RoleUtilisateur.CLIENT.ToString()));
-    options.AddPolicy("AnnonceurOnly", policy => policy.RequireRole(RoleUtilisateur.ANNONCEUR.ToString()));
+    options.AddPolicy("AnnonceurOnly", policy => policy.RequireRole(RoleUtilisateur.ANNONCEUR.ToString(), RoleUtilisateur.ADMIN.ToString()));
 });
 
 // Register Application Services
 builder.Services.AddApplicationServices();
+
+// Rate Limiting
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
+builder.Services.AddInMemoryRateLimiting();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
 // Setup Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -115399,6 +115605,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+
+app.UseIpRateLimiting();
 
 app.UseCors("AllowAll");
 
@@ -116983,7 +117191,15 @@ public class AnnonceRepository : IAnnonceRepository
     public async Task<Annonce?> GetByIdAsync(long id)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
-        const string sql = "SELECT a.*, u.Ville as AdSellerVille FROM Annonces a LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur WHERE a.IdAnnonce = @Id";
+        const string sql = @"
+            SELECT a.*, 
+                   ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName,
+                   u.PhotoProfilUrl AS AdSellerPhoto,
+                   u.Telephone AS AdSellerPhone,
+                   u.Ville as AdSellerVille 
+            FROM Annonces a 
+            LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur 
+            WHERE a.IdAnnonce = @Id";
         using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@Id", id);
         
@@ -117125,6 +117341,7 @@ public class AnnonceRepository : IAnnonceRepository
                 img.Url AS MainImageUrl,
                 ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName,
                 u.PhotoProfilUrl AS AdSellerPhoto,
+                u.Telephone AS AdSellerPhone,
                 u.Ville AS AdSellerVille
             FROM Annonces a
             LEFT JOIN Categories c ON a.IdCategorie = c.IdCategorie
@@ -117165,6 +117382,7 @@ public class AnnonceRepository : IAnnonceRepository
                     MainImageUrl = reader["MainImageUrl"] == DBNull.Value ? null : (string)reader["MainImageUrl"],
                     AnnonceurNom = reader["AdSellerName"] == DBNull.Value ? null : (string)reader["AdSellerName"],
                     AnnonceurPhotoUrl = reader["AdSellerPhoto"] == DBNull.Value ? null : (string)reader["AdSellerPhoto"],
+                    AnnonceurTelephone = reader["AdSellerPhone"] == DBNull.Value ? null : (string)reader["AdSellerPhone"],
                     Ville = reader["AdSellerVille"] == DBNull.Value ? null : (string)reader["AdSellerVille"]
                 };
                 items.Add(a);
@@ -117217,6 +117435,7 @@ public class AnnonceRepository : IAnnonceRepository
                 ISNULL(c.Nom, 'Sans catégorie') AS AdCategoryName,
                 ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName, 
                 u.PhotoProfilUrl AS AdSellerPhoto,
+                u.Telephone AS AdSellerPhone,
                 u.Ville AS AdSellerVille,
                 img.Url AS MainImageUrl
             FROM Annonces a
@@ -117362,6 +117581,7 @@ public class AnnonceRepository : IAnnonceRepository
             CategorieNom = reader.HasColumn("AdCategoryName") && reader["AdCategoryName"] != DBNull.Value ? (string)reader["AdCategoryName"] : null,
             AnnonceurNom = reader.HasColumn("AdSellerName") && reader["AdSellerName"] != DBNull.Value ? (string)reader["AdSellerName"] : null,
             AnnonceurPhotoUrl = reader.HasColumn("AdSellerPhoto") && reader["AdSellerPhoto"] != DBNull.Value ? (string)reader["AdSellerPhoto"] : null,
+            AnnonceurTelephone = reader.HasColumn("AdSellerPhone") && reader["AdSellerPhone"] != DBNull.Value ? (string)reader["AdSellerPhone"] : null,
             MainImageUrl = reader.HasColumn("MainImageUrl") && reader["MainImageUrl"] != DBNull.Value ? (string)reader["MainImageUrl"] : null,
             Ville = reader.HasColumn("AdSellerVille") && reader["AdSellerVille"] != DBNull.Value ? (string)reader["AdSellerVille"] : null
         };
@@ -117414,9 +117634,10 @@ public class AvisRepository : IAvisRepository
         
         // Data Query with OFFSET/FETCH
         const string dataSql = @"
-            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl 
+            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl, ann.Titre 
             FROM Avis a
-            JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+            LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+            LEFT JOIN Annonces ann ON a.IdAnnonce = ann.IdAnnonce
             WHERE a.IdAnnonce = @IdAnnonce AND a.EstActif = 1
             ORDER BY a.DateCreation DESC
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
@@ -117427,7 +117648,7 @@ public class AvisRepository : IAvisRepository
         dataCommand.Parameters.AddWithValue("@PageSize", pageSize);
         
         await connection.OpenAsync();
-        int totalCount = (int)await countCommand.ExecuteScalarAsync();
+        int totalCount = (int)(await countCommand.ExecuteScalarAsync() ?? 0);
         
         using var reader = await dataCommand.ExecuteReaderAsync();
         var items = new List<Avis>();
@@ -117442,9 +117663,10 @@ public class AvisRepository : IAvisRepository
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
         const string sql = @"
-            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl 
+            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl, ann.Titre 
             FROM Avis a
-            JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+            LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+            LEFT JOIN Annonces ann ON a.IdAnnonce = ann.IdAnnonce
             WHERE a.IdAnnonce = @IdAnnonce AND a.EstActif = 1
             ORDER BY a.DateCreation DESC";
             
@@ -117461,13 +117683,38 @@ public class AvisRepository : IAvisRepository
         return items;
     }
 
+    public async Task<IEnumerable<Avis>> GetByAnnonceurIdAsync(long idAnnonceur)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = @"
+            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl, ann.Titre 
+            FROM Avis a
+            LEFT JOIN Annonces ann ON a.IdAnnonce = ann.IdAnnonce
+            LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+            WHERE ann.IdUtilisateur = @IdAnnonceur AND a.EstActif = 1
+            ORDER BY a.DateCreation DESC";
+            
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@IdAnnonceur", idAnnonceur);
+        
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        var items = new List<Avis>();
+        while (await reader.ReadAsync())
+        {
+            items.Add(MapToAvis(reader));
+        }
+        return items;
+    }
+
     public async Task<Avis?> GetByIdAsync(long idAvis)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
         const string sql = @"
-            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl 
+            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl, ann.Titre 
             FROM Avis a
             JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+            JOIN Annonces ann ON a.IdAnnonce = ann.IdAnnonce
             WHERE a.IdAvis = @IdAvis";
             
         using var command = new SqlCommand(sql, connection);
@@ -117486,9 +117733,10 @@ public class AvisRepository : IAvisRepository
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
         const string sql = @"
-            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl 
+            SELECT a.*, u.Nom, u.Prenom, u.PhotoProfilUrl, ann.Titre 
             FROM Avis a
             JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur
+            JOIN Annonces ann ON a.IdAnnonce = ann.IdAnnonce
             WHERE a.IdUtilisateur = @IdUtilisateur AND a.IdAnnonce = @IdAnnonce";
             
         using var command = new SqlCommand(sql, connection);
@@ -117568,7 +117816,8 @@ public class AvisRepository : IAvisRepository
             EstActif = (bool)reader["EstActif"],
             NomUtilisateur = reader["Nom"] == DBNull.Value ? null : (string)reader["Nom"],
             PrenomUtilisateur = reader["Prenom"] == DBNull.Value ? null : (string)reader["Prenom"],
-            PhotoProfilUrl = reader["PhotoProfilUrl"] == DBNull.Value ? null : (string)reader["PhotoProfilUrl"]
+            PhotoProfilUrl = reader["PhotoProfilUrl"] == DBNull.Value ? null : (string)reader["PhotoProfilUrl"],
+            TitreAnnonce = reader["Titre"] == DBNull.Value ? string.Empty : (string)reader["Titre"]
         };
     }
 }
@@ -117736,6 +117985,61 @@ public class AuthRepository : IAuthRepository
 
         await ((SqlConnection)connection).OpenAsync();
         await command.ExecuteNonQueryAsync();
+    }
+
+    public async Task UpdateRefreshTokenAsync(long idUtilisateur, string? refreshToken, DateTime? expiry)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var command = new SqlCommand(@"
+            UPDATE Utilisateurs 
+            SET RefreshToken = @Token, RefreshTokenExpiry = @Expiry 
+            WHERE IdUtilisateur = @IdUtilisateur", 
+            (SqlConnection)connection);
+        command.Parameters.AddWithValue("@IdUtilisateur", idUtilisateur);
+        command.Parameters.AddWithValue("@Token", (object?)refreshToken ?? DBNull.Value);
+        command.Parameters.AddWithValue("@Expiry", (object?)expiry ?? DBNull.Value);
+
+        await ((SqlConnection)connection).OpenAsync();
+        await command.ExecuteNonQueryAsync();
+    }
+
+    public async Task<Utilisateur?> GetUserByRefreshTokenAsync(string refreshToken)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var command = new SqlCommand(@"
+            SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, DerniereConnexion, PhotoProfilUrl, Adresse, EstActif, Ville, RefreshToken, RefreshTokenExpiry 
+            FROM Utilisateurs 
+            WHERE RefreshToken = @Token", 
+            (SqlConnection)connection);
+        command.Parameters.AddWithValue("@Token", refreshToken);
+
+        await ((SqlConnection)connection).OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+
+        if (await reader.ReadAsync())
+        {
+            return new Utilisateur
+            {
+                IdUtilisateur = reader.GetInt64(reader.GetOrdinal("IdUtilisateur")),
+                Nom = reader.GetString(reader.GetOrdinal("Nom")),
+                Prenom = reader.GetString(reader.GetOrdinal("Prenom")),
+                Email = reader.GetString(reader.GetOrdinal("Email")),
+                Telephone = reader.IsDBNull(reader.GetOrdinal("Telephone")) ? null : reader.GetString(reader.GetOrdinal("Telephone")),
+                MotDePasseHash = reader.GetString(reader.GetOrdinal("MotDePasseHash")),
+                Role = (RoleUtilisateur)reader.GetInt32(reader.GetOrdinal("Role")),
+                StatutCompte = (StatutCompte)reader.GetInt32(reader.GetOrdinal("StatutCompte")),
+                DateCreation = reader.GetDateTime(reader.GetOrdinal("DateCreation")),
+                DerniereConnexion = reader.IsDBNull(reader.GetOrdinal("DerniereConnexion")) ? null : reader.GetDateTime(reader.GetOrdinal("DerniereConnexion")),
+                PhotoProfilUrl = reader.IsDBNull(reader.GetOrdinal("PhotoProfilUrl")) ? null : reader.GetString(reader.GetOrdinal("PhotoProfilUrl")),
+                Adresse = reader.IsDBNull(reader.GetOrdinal("Adresse")) ? null : reader.GetString(reader.GetOrdinal("Adresse")),
+                EstActif = reader.GetBoolean(reader.GetOrdinal("EstActif")),
+                Ville = reader.IsDBNull(reader.GetOrdinal("Ville")) ? null : reader.GetString(reader.GetOrdinal("Ville")),
+                RefreshToken = reader.IsDBNull(reader.GetOrdinal("RefreshToken")) ? null : reader.GetString(reader.GetOrdinal("RefreshToken")),
+                RefreshTokenExpiry = reader.IsDBNull(reader.GetOrdinal("RefreshTokenExpiry")) ? null : reader.GetDateTime(reader.GetOrdinal("RefreshTokenExpiry"))
+            };
+        }
+
+        return null;
     }
 
     public async Task<DateTime?> GetLatestResetTokenDateAsync(long idUtilisateur)
@@ -118914,6 +119218,7 @@ public class AnnonceService : IAnnonceService
             IdUtilisateur = annonce.IdUtilisateur,
             AnnonceurNom = user != null ? $"{user.Prenom} {user.Nom}" : "Utilisateur Inconnu",
             AnnonceurPhotoUrl = _storageService.GetFullUrl(user?.PhotoProfilUrl),
+            AnnonceurTelephone = user?.Telephone,
             IdCategorie = annonce.IdCategorie,
             CategorieNom = category?.Nom ?? "Unknown",
             Titre = annonce.Titre,
@@ -119187,6 +119492,7 @@ public class AnnonceService : IAnnonceService
                 MainImageUrl = _storageService.GetFullUrl(mainImage),
                 AnnonceurNom = a.AnnonceurNom ?? "Utilisateur",
                 AnnonceurPhotoUrl = _storageService.GetFullUrl(a.AnnonceurPhotoUrl),
+                AnnonceurTelephone = a.AnnonceurTelephone,
                 Ville = a.Ville
             });
         }
@@ -119223,6 +119529,12 @@ public class AvisService : IAvisService
     public async Task<IEnumerable<AvisDto>> GetByAnnonceIdAsync(long idAnnonce)
     {
         var avis = await _avisRepository.GetByAnnonceIdAsync(idAnnonce);
+        return avis.Select(MapToDto);
+    }
+
+    public async Task<IEnumerable<AvisDto>> GetByAnnonceurIdAsync(long idAnnonceur)
+    {
+        var avis = await _avisRepository.GetByAnnonceurIdAsync(idAnnonceur);
         return avis.Select(MapToDto);
     }
 
@@ -119309,6 +119621,7 @@ public class AvisService : IAvisService
             Note = avis.Note,
             Commentaire = avis.Commentaire,
             PhotoProfilUrl = avis.PhotoProfilUrl,
+            TitreAnnonce = avis.TitreAnnonce ?? string.Empty,
             DateCreation = avis.DateCreation,
             DateModification = avis.DateModification
         };
@@ -119329,6 +119642,7 @@ using api.Interfaces.Auth;
 using api.Models;
 using api.Models.Enums;
 using api.Interfaces.Email;
+using Microsoft.Extensions.Options;
 
 namespace api.Services.Auth;
 
@@ -119338,17 +119652,20 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _tokenGenerator;
     private readonly IEmailService _emailService;
+    private readonly JwtSettings _jwtSettings;
 
     public AuthService(
         IAuthRepository repository, 
         IPasswordHasher passwordHasher, 
         IJwtTokenGenerator tokenGenerator,
-        IEmailService emailService)
+        IEmailService emailService,
+        IOptions<JwtSettings> jwtSettings)
     {
         _repository = repository;
         _passwordHasher = passwordHasher;
         _tokenGenerator = tokenGenerator;
         _emailService = emailService;
+        _jwtSettings = jwtSettings.Value;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request)
@@ -119371,10 +119688,15 @@ public class AuthService : IAuthService
         var newUserId = await _repository.CreateUserAsync(user);
 
         var token = _tokenGenerator.GenerateToken(newUserId, user.Email, user.Role.ToString());
+        var refreshToken = _tokenGenerator.GenerateRefreshToken();
+        var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays);
+
+        await _repository.UpdateRefreshTokenAsync(newUserId, refreshToken, refreshTokenExpiry);
 
         return new AuthResponseDto
         {
             Token = token,
+            RefreshToken = refreshToken,
             User = new UserProfileDto
             {
                 IdUtilisateur = newUserId,
@@ -119399,10 +119721,49 @@ public class AuthService : IAuthService
             throw new ForbiddenException("Account is not active.");
 
         var token = _tokenGenerator.GenerateToken(user.IdUtilisateur, user.Email, user.Role.ToString());
+        var refreshToken = _tokenGenerator.GenerateRefreshToken();
+        var refreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays);
+
+        await _repository.UpdateRefreshTokenAsync(user.IdUtilisateur, refreshToken, refreshTokenExpiry);
 
         return new AuthResponseDto
         {
             Token = token,
+            RefreshToken = refreshToken,
+            User = new UserProfileDto
+            {
+                IdUtilisateur = user.IdUtilisateur,
+                Nom = user.Nom,
+                Prenom = user.Prenom,
+                Email = user.Email,
+                Telephone = user.Telephone,
+                Role = user.Role.ToString(),
+                StatutCompte = user.StatutCompte.ToString(),
+                DateCreation = user.DateCreation,
+                PhotoProfilUrl = user.PhotoProfilUrl,
+                Adresse = user.Adresse,
+                Ville = user.Ville
+            }
+        };
+    }
+
+    public async Task<AuthResponseDto> RefreshTokenAsync(string refreshToken)
+    {
+        var user = await _repository.GetUserByRefreshTokenAsync(refreshToken);
+
+        if (user == null || user.RefreshTokenExpiry < DateTime.UtcNow)
+            throw new UnauthorizedException("Invalid or expired refresh token.");
+
+        var newToken = _tokenGenerator.GenerateToken(user.IdUtilisateur, user.Email, user.Role.ToString());
+        var newRefreshToken = _tokenGenerator.GenerateRefreshToken();
+        var newRefreshTokenExpiry = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays);
+
+        await _repository.UpdateRefreshTokenAsync(user.IdUtilisateur, newRefreshToken, newRefreshTokenExpiry);
+
+        return new AuthResponseDto
+        {
+            Token = newToken,
+            RefreshToken = newRefreshToken,
             User = new UserProfileDto
             {
                 IdUtilisateur = user.IdUtilisateur,

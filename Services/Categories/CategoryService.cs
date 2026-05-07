@@ -61,8 +61,6 @@ public class CategoryService : ICategoryService
                 IdAttributCategorie = attr.IdAttributCategorie,
                 Nom = attr.Nom,
                 TypeDonnee = attr.TypeDonnee.ToString(),
-                Obligatoire = attr.Obligatoire,
-                Filtrable = attr.Filtrable,
                 OrdreAffichage = attr.OrdreAffichage,
                 Placeholder = attr.Placeholder,
                 EstPlage = attr.EstPlage,

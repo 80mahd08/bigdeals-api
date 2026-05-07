@@ -21,7 +21,7 @@ public class CategoryRepository : ICategoryRepository
     public async Task<IReadOnlyList<Categorie>> GetAllAsync()
     {
         using var connection = _connectionFactory.CreateConnection();
-        const string sql = "SELECT * FROM Categories WHERE EstActive = 1 ORDER BY OrdreAffichage";
+        const string sql = "SELECT IdCategorie, Nom, Description, IconKey, OrdreAffichage, DateCreation FROM Categories ORDER BY OrdreAffichage, Nom";
         using var command = new SqlCommand(sql, (SqlConnection)connection);
         
         if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
@@ -38,7 +38,7 @@ public class CategoryRepository : ICategoryRepository
     public async Task<Categorie?> GetByIdAsync(int id)
     {
         using var connection = _connectionFactory.CreateConnection();
-        const string sql = "SELECT * FROM Categories WHERE IdCategorie = @Id AND EstActive = 1";
+        const string sql = "SELECT IdCategorie, Nom, Description, IconKey, OrdreAffichage, DateCreation FROM Categories WHERE IdCategorie = @Id";
         using var command = new SqlCommand(sql, (SqlConnection)connection);
         command.Parameters.AddWithValue("@Id", id);
         
@@ -55,7 +55,7 @@ public class CategoryRepository : ICategoryRepository
     public async Task<IReadOnlyList<AttributCategorie>> GetAttributesByCategoryIdAsync(int idCategorie)
     {
         using var connection = _connectionFactory.CreateConnection();
-        const string sql = "SELECT * FROM AttributsCategorie WHERE IdCategorie = @IdCategorie AND EstActive = 1 ORDER BY OrdreAffichage";
+        const string sql = "SELECT IdAttributCategorie, IdCategorie, Nom, TypeDonnee, OrdreAffichage, Placeholder, EstPlage FROM AttributsCategorie WHERE IdCategorie = @IdCategorie ORDER BY OrdreAffichage, Nom";
         using var command = new SqlCommand(sql, (SqlConnection)connection);
         command.Parameters.AddWithValue("@IdCategorie", idCategorie);
         
@@ -73,7 +73,7 @@ public class CategoryRepository : ICategoryRepository
     public async Task<IReadOnlyList<OptionAttributCategorie>> GetOptionsByAttributeIdAsync(int idAttributCategorie)
     {
         using var connection = _connectionFactory.CreateConnection();
-        const string sql = "SELECT * FROM OptionsAttributCategorie WHERE IdAttributCategorie = @IdAttributCategorie AND EstActive = 1 ORDER BY OrdreAffichage";
+        const string sql = "SELECT IdOptionAttributCategorie, IdAttributCategorie, Valeur, OrdreAffichage FROM OptionsAttributCategorie WHERE IdAttributCategorie = @IdAttributCategorie ORDER BY OrdreAffichage, Valeur";
         using var command = new SqlCommand(sql, (SqlConnection)connection);
         command.Parameters.AddWithValue("@IdAttributCategorie", idAttributCategorie);
         
@@ -97,7 +97,6 @@ public class CategoryRepository : ICategoryRepository
             Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description")),
             IconKey = reader.IsDBNull(reader.GetOrdinal("IconKey")) ? null : reader.GetString(reader.GetOrdinal("IconKey")),
             OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage")),
-            EstActive = reader.GetBoolean(reader.GetOrdinal("EstActive")),
             DateCreation = reader.GetDateTime(reader.GetOrdinal("DateCreation"))
         };
     }
@@ -110,12 +109,9 @@ public class CategoryRepository : ICategoryRepository
             IdCategorie = reader.GetInt32(reader.GetOrdinal("IdCategorie")),
             Nom = reader.GetString(reader.GetOrdinal("Nom")),
             TypeDonnee = (TypeDonneeAttribut)reader.GetInt32(reader.GetOrdinal("TypeDonnee")),
-            Obligatoire = reader.GetBoolean(reader.GetOrdinal("Obligatoire")),
-            Filtrable = reader.GetBoolean(reader.GetOrdinal("Filtrable")),
             OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage")),
             Placeholder = reader.IsDBNull(reader.GetOrdinal("Placeholder")) ? null : reader.GetString(reader.GetOrdinal("Placeholder")),
-            EstPlage = reader.GetBoolean(reader.GetOrdinal("EstPlage")),
-            EstActive = reader.GetBoolean(reader.GetOrdinal("EstActive"))
+            EstPlage = reader.GetBoolean(reader.GetOrdinal("EstPlage"))
         };
     }
 
@@ -126,8 +122,7 @@ public class CategoryRepository : ICategoryRepository
             IdOptionAttributCategorie = reader.GetInt32(reader.GetOrdinal("IdOptionAttributCategorie")),
             IdAttributCategorie = reader.GetInt32(reader.GetOrdinal("IdAttributCategorie")),
             Valeur = reader.GetString(reader.GetOrdinal("Valeur")),
-            OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage")),
-            EstActive = reader.GetBoolean(reader.GetOrdinal("EstActive"))
+            OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage"))
         };
     }
 }

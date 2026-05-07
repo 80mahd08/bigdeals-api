@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "PqdtZXf6JhsSBi0EC98JrqO6N4+FVWw/V2VWR9xAEDc=",
+  "Hash": "kWa4rls1RbT4BxhxQ6yv6N3yEPNRSriOY0Xh1e8FKX0=",
   "Source": "api",
   "BasePath": "_content/api",
   "Mode": "Default",
@@ -15,5 +15,63 @@
       "Pattern": "**"
     }
   ],
-  "Assets": []
+  "Assets": [
+    {
+      "Identity": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\31474286ec8449bc8e4f50db798b7db8.jpg",
+      "SourceId": "api",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\my work\\api\\wwwroot\\",
+      "BasePath": "_content/api",
+      "RelativePath": "uploads/annonces/31474286ec8449bc8e4f50db798b7db8.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\uploads\\annonces\\31474286ec8449bc8e4f50db798b7db8.jpg"
+    },
+    {
+      "Identity": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\6d9d81d4f53c41399a0d9aa35eb92424.jpg",
+      "SourceId": "api",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\my work\\api\\wwwroot\\",
+      "BasePath": "_content/api",
+      "RelativePath": "uploads/annonces/6d9d81d4f53c41399a0d9aa35eb92424.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\uploads\\annonces\\6d9d81d4f53c41399a0d9aa35eb92424.jpg"
+    },
+    {
+      "Identity": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\7efb5775045740869c38d9aed0d82ba3.jpg",
+      "SourceId": "api",
+      "SourceType": "Discovered",
+      "ContentRoot": "E:\\my work\\api\\wwwroot\\",
+      "BasePath": "_content/api",
+      "RelativePath": "uploads/annonces/7efb5775045740869c38d9aed0d82ba3.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\uploads\\annonces\\7efb5775045740869c38d9aed0d82ba3.jpg"
+    }
+  ]
 }

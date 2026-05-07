@@ -1,10 +1,12 @@
 USE BigDealsDb;
 GO
 
+------------------------------------------------------------
 -- 1. Utilisateurs
-IF OBJECT_ID('Utilisateurs', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.Utilisateurs', 'U') IS NULL
 BEGIN
-    CREATE TABLE Utilisateurs (
+    CREATE TABLE dbo.Utilisateurs (
         IdUtilisateur BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         Nom NVARCHAR(100) NOT NULL,
         Prenom NVARCHAR(100) NOT NULL,
@@ -13,7 +15,7 @@ BEGIN
         MotDePasseHash NVARCHAR(500) NOT NULL,
         Role INT NOT NULL, -- 1=CLIENT, 2=ANNONCEUR, 3=ADMIN
         StatutCompte INT NOT NULL, -- 1=ACTIF, 2=INACTIF, 3=EN_ATTENTE, 4=BLOQUE
-        DateCreation DATETIME2 NOT NULL,
+        DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         DerniereConnexion DATETIME2 NULL,
         PhotoProfilUrl NVARCHAR(500) NULL,
         Adresse NVARCHAR(300) NULL,
@@ -22,10 +24,12 @@ BEGIN
 END
 GO
 
+------------------------------------------------------------
 -- 2. DemandesAnnonceur
-IF OBJECT_ID('DemandesAnnonceur', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.DemandesAnnonceur', 'U') IS NULL
 BEGIN
-    CREATE TABLE DemandesAnnonceur (
+    CREATE TABLE dbo.DemandesAnnonceur (
         IdDemandeAnnonceur BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdUtilisateur BIGINT NOT NULL,
         Statut INT NOT NULL, -- 1=EN_ATTENTE, 2=APPROUVEE, 3=REJETEE
@@ -34,61 +38,69 @@ BEGIN
         DocumentType NVARCHAR(100) NOT NULL,
         DocumentTaille BIGINT NOT NULL,
         MotifRejet NVARCHAR(1000) NULL,
-        DateDemande DATETIME2 NOT NULL,
+        DateDemande DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         DateTraitement DATETIME2 NULL,
         IdAdminTraitant BIGINT NULL
     );
 END
 GO
 
--- 3. Categories
-IF OBJECT_ID('Categories', 'U') IS NULL
+------------------------------------------------------------
+-- 3. Categories - FINAL CLEAN VERSION
+------------------------------------------------------------
+IF OBJECT_ID('dbo.Categories', 'U') IS NULL
 BEGIN
-    CREATE TABLE Categories (
+    CREATE TABLE dbo.Categories (
         IdCategorie INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         Nom NVARCHAR(100) NOT NULL,
         Description NVARCHAR(500) NULL,
         IconKey NVARCHAR(100) NULL,
         OrdreAffichage INT NOT NULL,
-        EstActive BIT NOT NULL DEFAULT 1,
         DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
     );
 END
 GO
 
--- 4. AttributsCategorie
-IF OBJECT_ID('AttributsCategorie', 'U') IS NULL
+------------------------------------------------------------
+-- 4. AttributsCategorie - FINAL CLEAN VERSION
+-- Removed: Obligatoire, Filtrable, EstActive
+-- Kept: EstPlage
+------------------------------------------------------------
+IF OBJECT_ID('dbo.AttributsCategorie', 'U') IS NULL
 BEGIN
-    CREATE TABLE AttributsCategorie (
+    CREATE TABLE dbo.AttributsCategorie (
         IdAttributCategorie INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdCategorie INT NOT NULL,
         Nom NVARCHAR(100) NOT NULL,
-        TypeDonnee INT NOT NULL,
-        Obligatoire BIT NOT NULL DEFAULT 0,
-        Filtrable BIT NOT NULL DEFAULT 1,
+        TypeDonnee INT NOT NULL, -- 1=TEXTE, 2=NOMBRE, 3=DATE, 4=BOOLEAN, 5=LISTE
         OrdreAffichage INT NOT NULL,
-        EstActive BIT NOT NULL DEFAULT 1
+        Placeholder NVARCHAR(255) NULL,
+        EstPlage BIT NOT NULL DEFAULT 0
     );
 END
 GO
 
--- 5. OptionsAttributCategorie
-IF OBJECT_ID('OptionsAttributCategorie', 'U') IS NULL
+------------------------------------------------------------
+-- 5. OptionsAttributCategorie - FINAL CLEAN VERSION
+-- Removed: EstActive
+------------------------------------------------------------
+IF OBJECT_ID('dbo.OptionsAttributCategorie', 'U') IS NULL
 BEGIN
-    CREATE TABLE OptionsAttributCategorie (
+    CREATE TABLE dbo.OptionsAttributCategorie (
         IdOptionAttributCategorie INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdAttributCategorie INT NOT NULL,
         Valeur NVARCHAR(150) NOT NULL,
-        OrdreAffichage INT NOT NULL,
-        EstActive BIT NOT NULL DEFAULT 1
+        OrdreAffichage INT NOT NULL
     );
 END
 GO
 
+------------------------------------------------------------
 -- 6. Annonces
-IF OBJECT_ID('Annonces', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.Annonces', 'U') IS NULL
 BEGIN
-    CREATE TABLE Annonces (
+    CREATE TABLE dbo.Annonces (
         IdAnnonce BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdUtilisateur BIGINT NOT NULL,
         IdCategorie INT NOT NULL,
@@ -105,10 +117,12 @@ BEGIN
 END
 GO
 
+------------------------------------------------------------
 -- 7. ValeursAttributAnnonce
-IF OBJECT_ID('ValeursAttributAnnonce', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.ValeursAttributAnnonce', 'U') IS NULL
 BEGIN
-    CREATE TABLE ValeursAttributAnnonce (
+    CREATE TABLE dbo.ValeursAttributAnnonce (
         IdValeurAttributAnnonce BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdAnnonce BIGINT NOT NULL,
         IdAttributCategorie INT NOT NULL,
@@ -121,10 +135,12 @@ BEGIN
 END
 GO
 
+------------------------------------------------------------
 -- 8. ImagesAnnonce
-IF OBJECT_ID('ImagesAnnonce', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.ImagesAnnonce', 'U') IS NULL
 BEGIN
-    CREATE TABLE ImagesAnnonce (
+    CREATE TABLE dbo.ImagesAnnonce (
         IdImageAnnonce BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdAnnonce BIGINT NOT NULL,
         Url NVARCHAR(500) NOT NULL,
@@ -135,48 +151,58 @@ BEGIN
 END
 GO
 
+------------------------------------------------------------
 -- 9. Favoris
-IF OBJECT_ID('Favoris', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.Favoris', 'U') IS NULL
 BEGIN
-    CREATE TABLE Favoris (
+    CREATE TABLE dbo.Favoris (
         IdFavori BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdUtilisateur BIGINT NOT NULL,
         IdAnnonce BIGINT NOT NULL,
         DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        UNIQUE(IdUtilisateur, IdAnnonce)
+        CONSTRAINT UQ_Favoris_Utilisateur_Annonce UNIQUE (IdUtilisateur, IdAnnonce)
     );
 END
 GO
 
+------------------------------------------------------------
 -- 10. AbonnementsAnnonceur
-IF OBJECT_ID('AbonnementsAnnonceur', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.AbonnementsAnnonceur', 'U') IS NULL
 BEGIN
-    CREATE TABLE AbonnementsAnnonceur (
+    CREATE TABLE dbo.AbonnementsAnnonceur (
         IdAbonnementAnnonceur BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdUtilisateur BIGINT NOT NULL,
         IdAnnonceur BIGINT NOT NULL,
         DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        UNIQUE(IdUtilisateur, IdAnnonceur)
+        CONSTRAINT UQ_AbonnementsAnnonceur_Utilisateur_Annonceur UNIQUE (IdUtilisateur, IdAnnonceur)
     );
 END
 GO
 
+------------------------------------------------------------
 -- 11. ContactsAnnonceur
-IF OBJECT_ID('ContactsAnnonceur', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.ContactsAnnonceur', 'U') IS NULL
 BEGIN
-    CREATE TABLE ContactsAnnonceur (
+    CREATE TABLE dbo.ContactsAnnonceur (
         IdContactAnnonceur BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdUtilisateur BIGINT NULL,
         IdAnnonce BIGINT NOT NULL,
         IdAnnonceur BIGINT NOT NULL,
-        TypeContact INT NOT NULL,
+        TypeContact INT NOT NULL, -- 1=TELEPHONE, 2=WHATSAPP
         DateContact DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
     );
 END
+GO
+
+------------------------------------------------------------
 -- 12. PasswordResetTokens
-IF OBJECT_ID('PasswordResetTokens', 'U') IS NULL
+------------------------------------------------------------
+IF OBJECT_ID('dbo.PasswordResetTokens', 'U') IS NULL
 BEGIN
-    CREATE TABLE PasswordResetTokens (
+    CREATE TABLE dbo.PasswordResetTokens (
         IdPasswordResetToken BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         IdUtilisateur BIGINT NOT NULL,
         TokenHash NVARCHAR(500) NOT NULL,
