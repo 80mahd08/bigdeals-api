@@ -74,6 +74,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("me/favorites")]
+    [Authorize(Roles = "CLIENT,ANNONCEUR")]
     public async Task<IActionResult> GetMyFavorites([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
         var userId = _currentUserService.GetUserId();

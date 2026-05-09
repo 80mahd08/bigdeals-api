@@ -5,12 +5,13 @@ using api.Common;
 using api.Interfaces.Favorites;
 using api.Interfaces.Users;
 using api.Helpers.Security;
+using System.Collections.Generic;
 
 namespace api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // Globally requires auth
+[Authorize(Roles = "CLIENT,ANNONCEUR")]
 public class FavoritesController : ControllerBase
 {
     private readonly IFavoriteService _favoriteService;
@@ -25,24 +26,17 @@ public class FavoritesController : ControllerBase
     [HttpPost("{idAnnonce}")]
     public async Task<IActionResult> AddFavorite(long idAnnonce)
     {
-        // Only CLIENT and ANNONCEUR should favorite. Admin shouldn't really use this.
-        if (User.IsInRole("ADMIN"))
-            return Forbid(); // 403
-
         var userId = _currentUserService.GetUserId();
         await _favoriteService.AddFavoriteAsync(userId, idAnnonce);
-        return Ok(ApiResponse<object>.Ok(null, "Annonce added to favorites successfully."));
+        return Ok(ApiResponse<bool>.Ok(true, "Annonce ajoutée aux favoris."));
     }
 
     [HttpDelete("{idAnnonce}")]
     public async Task<IActionResult> RemoveFavorite(long idAnnonce)
     {
-        if (User.IsInRole("ADMIN"))
-            return Forbid(); // 403
-
         var userId = _currentUserService.GetUserId();
         await _favoriteService.RemoveFavoriteAsync(userId, idAnnonce);
-        return Ok(ApiResponse<object>.Ok(null, "Annonce removed from favorites successfully."));
+        return Ok(ApiResponse<bool>.Ok(true, "Annonce retirée des favoris."));
     }
 
     [HttpGet("ids")]

@@ -18,6 +18,7 @@ public interface IAuthRepository
     Task<bool> EmailExistsAsync(string email);
     Task<Utilisateur?> GetUserByEmailAsync(string email);
     Task<long> CreateUserAsync(Utilisateur user);
+    Task<Utilisateur?> GetByIdAsync(long idUtilisateur);
     
     // Password Reset
     Task InvalidateUnusedResetTokensAsync(long idUtilisateur);

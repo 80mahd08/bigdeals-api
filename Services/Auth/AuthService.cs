@@ -186,7 +186,7 @@ public class AuthService : IAuthService
     public async Task ResetPasswordAsync(ResetPasswordRequestDto request)
     {
         if (request.NewPassword != request.ConfirmPassword)
-            throw new BadRequestException("Passwords do not match.");
+            throw new BadRequestException("Les mots de passe ne correspondent pas.");
 
         // Hash submitted token to compare
         var tokenHash = HashToken(request.Token);
@@ -194,7 +194,16 @@ public class AuthService : IAuthService
         // Verify token
         var validToken = await _repository.GetValidResetTokenAsync(tokenHash);
         if (validToken == null)
-            throw new BadRequestException("Invalid, expired or already used reset token.");
+            throw new BadRequestException("Jeton de réinitialisation invalide, expiré ou déjà utilisé.");
+
+        // Get user to check old password
+        var user = await _repository.GetByIdAsync(validToken.Value.IdUtilisateur);
+        if (user == null)
+            throw new BadRequestException("Utilisateur non trouvé.");
+
+        // Check if new password is same as old one
+        if (_passwordHasher.VerifyPassword(request.NewPassword, user.MotDePasseHash))
+            throw new BadRequestException("Le nouveau mot de passe ne peut pas être identique à l'ancien.");
 
         // Update password
         var newHash = _passwordHasher.HashPassword(request.NewPassword);
