@@ -24,10 +24,21 @@ public class AdminDemandesAnnonceurController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<DemandeAnnonceurDto>>>> GetAllRequests()
+    public async Task<ActionResult<ApiResponse<PagedResponse<DemandeAnnonceurDto>>>> GetAllRequests(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int? statut = null,
+        [FromQuery] string? search = null)
     {
-        var result = await _service.GetAllRequestsAsync();
-        return Ok(ApiResponse<IReadOnlyList<DemandeAnnonceurDto>>.Ok(result));
+        // Clamp pageSize to max 50
+        if (pageSize > 50) pageSize = 50;
+        if (pageSize < 1) pageSize = 10;
+        if (pageNumber < 1) pageNumber = 1;
+
+        var (items, totalCount) = await _service.GetAllRequestsPagedAsync(pageNumber, pageSize, statut, search);
+        
+        var response = new PagedResponse<DemandeAnnonceurDto>(items, totalCount, pageNumber, pageSize);
+        return Ok(ApiResponse<PagedResponse<DemandeAnnonceurDto>>.Ok(response));
     }
 
     [HttpGet("{id}")]
@@ -42,7 +53,7 @@ public class AdminDemandesAnnonceurController : ControllerBase
     {
         var adminId = _currentUserService.GetUserId();
         await _service.ApproveRequestAsync(id, adminId);
-        return Ok(ApiResponse<object>.Ok(null, "Request approved successfully. User is now an advertiser."));
+        return Ok(ApiResponse<object>.Ok(null, "Advertiser request document accepted. Payment is now required."));
     }
 
     [HttpPut("{id}/reject")]

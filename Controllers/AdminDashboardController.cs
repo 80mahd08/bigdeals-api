@@ -25,4 +25,11 @@ public class AdminDashboardController : ControllerBase
         var stats = await _service.GetDashboardStatsAsync();
         return Ok(ApiResponse<AdminDashboardStatsDto>.Ok(stats));
     }
+
+    [HttpGet("growth")]
+    public async Task<ActionResult<ApiResponse<AdminGrowthChartDto>>> GetGrowth([FromQuery] string metric = "users", [FromQuery] string period = "30d")
+    {
+        var chart = await _service.GetGrowthChartAsync(metric, period);
+        return Ok(ApiResponse<AdminGrowthChartDto>.Ok(chart));
+    }
 }

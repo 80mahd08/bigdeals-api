@@ -17,6 +17,8 @@ public interface IAnnonceRepository
     Task<IReadOnlyList<ValeurAttributAnnonce>> GetValeursByAnnonceIdAsync(long idAnnonce);
     Task<IReadOnlyList<ImageAnnonce>> GetImagesByAnnonceIdAsync(long idAnnonce);
     Task<bool> UpdateStatutAsync(long id, StatutAnnonce statut);
+    Task<int> SuspendAllUserAnnoncesAsync(long idUtilisateur);
+    Task<int> RestoreAllUserAnnoncesAsync(long idUtilisateur);
     Task<long> AddImageAsync(ImageAnnonce image);
     Task<bool> DeleteImageAsync(long idImage);
 }

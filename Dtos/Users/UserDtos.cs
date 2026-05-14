@@ -13,6 +13,7 @@ public class UserProfileDto
     public string? Telephone { get; set; }
     public string Role { get; set; } = string.Empty;
     public string StatutCompte { get; set; } = string.Empty;
+    public string StatutLabel { get; set; } = string.Empty;
     public DateTime DateCreation { get; set; }
     public string? PhotoProfilUrl { get; set; }
     public string? Adresse { get; set; }

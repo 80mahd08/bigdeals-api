@@ -49,7 +49,7 @@ public class DemandeAnnonceurService : IDemandeAnnonceurService
         var demande = new DemandeAnnonceur
         {
             IdUtilisateur = idUtilisateur,
-            Statut = StatutDemandeAnnonceur.EN_ATTENTE,
+            Statut = StatutDemandeAnnonceur.EN_ATTENTE_VERIFICATION,
             DocumentUrl = fileResult.Url,
             DocumentNomOriginal = fileResult.OriginalName,
             DocumentType = fileResult.Type,
@@ -73,6 +73,14 @@ public class DemandeAnnonceurService : IDemandeAnnonceurService
         return requests.Select(MapToDto).ToList();
     }
 
+    public async Task<(IReadOnlyList<DemandeAnnonceurDto> Items, int TotalCount)> GetAllRequestsPagedAsync(int pageNumber, int pageSize, int? statut, string? search)
+    {
+        var requests = await _repository.GetAllPagedAsync(pageNumber, pageSize, statut, search);
+        var totalCount = await _repository.GetCountAsync(statut, search);
+        
+        return (requests.Select(MapToDto).ToList(), totalCount);
+    }
+
     public async Task<DemandeAnnonceurDto> GetRequestByIdAsync(long idDemandeAnnonceur)
     {
         var request = await _repository.GetByIdAsync(idDemandeAnnonceur);
@@ -88,12 +96,21 @@ public class DemandeAnnonceurService : IDemandeAnnonceurService
         if (request == null)
             throw new NotFoundException("Request not found.");
 
-        if (request.Statut != StatutDemandeAnnonceur.EN_ATTENTE)
-            throw new BadRequestException("Only pending requests can be approved.");
+        if (request.Statut == StatutDemandeAnnonceur.EN_ATTENTE_PAIEMENT)
+            throw new BadRequestException("This advertiser request is already waiting for payment.");
 
-        var success = await _repository.UpdateStatusToApprovedAsync(idDemandeAnnonceur, idAdminTraitant, request.IdUtilisateur);
+        if (request.Statut == StatutDemandeAnnonceur.APPROUVEE)
+            throw new BadRequestException("This advertiser request has already been approved.");
+
+        if (request.Statut == StatutDemandeAnnonceur.REJETEE)
+            throw new BadRequestException("This advertiser request has already been rejected.");
+
+        if (request.Statut != StatutDemandeAnnonceur.EN_ATTENTE_VERIFICATION)
+            throw new BadRequestException("Only requests pending verification can be accepted.");
+
+        var success = await _repository.UpdateStatusToWaitingForPaymentAsync(idDemandeAnnonceur, idAdminTraitant);
         if (!success)
-            throw new InternalServerException("Failed to approve request.");
+            throw new InternalServerException("Failed to update request status.");
     }
 
     public async Task RejectRequestAsync(long idDemandeAnnonceur, long idAdminTraitant, RejectDemandeAnnonceurDto dto)
@@ -105,8 +122,17 @@ public class DemandeAnnonceurService : IDemandeAnnonceurService
         if (request == null)
             throw new NotFoundException("Request not found.");
 
-        if (request.Statut != StatutDemandeAnnonceur.EN_ATTENTE)
-            throw new BadRequestException("Only pending requests can be rejected.");
+        if (request.Statut == StatutDemandeAnnonceur.EN_ATTENTE_PAIEMENT)
+            throw new BadRequestException("This advertiser request is already waiting for payment and cannot be rejected here.");
+
+        if (request.Statut == StatutDemandeAnnonceur.APPROUVEE)
+            throw new BadRequestException("This advertiser request has already been approved and cannot be rejected.");
+
+        if (request.Statut == StatutDemandeAnnonceur.REJETEE)
+            throw new BadRequestException("This advertiser request has already been rejected.");
+
+        if (request.Statut != StatutDemandeAnnonceur.EN_ATTENTE_VERIFICATION)
+            throw new BadRequestException("Only requests pending verification can be rejected.");
 
         var success = await _repository.UpdateStatusToRejectedAsync(idDemandeAnnonceur, idAdminTraitant, dto.MotifRejet);
         if (!success)
@@ -133,6 +159,11 @@ public class DemandeAnnonceurService : IDemandeAnnonceurService
         {
             IdDemandeAnnonceur = model.IdDemandeAnnonceur,
             IdUtilisateur = model.IdUtilisateur,
+            NomUtilisateur = model.NomUtilisateur ?? "Utilisateur",
+            PrenomUtilisateur = model.PrenomUtilisateur ?? "",
+            NomCompletUtilisateur = $"{model.PrenomUtilisateur} {model.NomUtilisateur}".Trim(),
+            EmailUtilisateur = model.EmailUtilisateur ?? "",
+            PhotoProfilUrl = model.PhotoProfilUrl,
             Statut = model.Statut.ToString(),
             DocumentUrl = $"/api/admin/demandes-annonceur/{model.IdDemandeAnnonceur}/document",
             DocumentNomOriginal = model.DocumentNomOriginal,

@@ -16,8 +16,7 @@ BEGIN
         MotDePasseHash,
         Role,
         StatutCompte,
-        DateCreation,
-        EstActif
+        DateCreation
     )
     VALUES
     (
@@ -27,8 +26,7 @@ BEGIN
         N'PBKDF2$100000$xz7LSmwzbI20+Pyb+lBebQ==$vintzW0EzLXlQdtJe7yJZbZHUUbLK1nRlh9S3kAF/lg=',
         3, -- ADMIN
         1, -- ACTIF
-        SYSUTCDATETIME(),
-        1
+        SYSUTCDATETIME()
     );
 
     PRINT 'Initial admin user seeded successfully.';

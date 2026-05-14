@@ -10,16 +10,15 @@ public enum RoleUtilisateur
 public enum StatutCompte
 {
     ACTIF = 1,
-    INACTIF = 2,
-    EN_ATTENTE = 3,
-    BLOQUE = 4
+    BLOQUE = 2
 }
 
 public enum StatutDemandeAnnonceur
 {
-    EN_ATTENTE = 1,
+    EN_ATTENTE_VERIFICATION = 1,
     APPROUVEE = 2,
-    REJETEE = 3
+    REJETEE = 3,
+    EN_ATTENTE_PAIEMENT = 4
 }
 
 public enum TypeDonneeAttribut

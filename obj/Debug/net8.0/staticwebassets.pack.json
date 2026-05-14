@@ -13,6 +13,34 @@
       "PackagePath": "staticwebassets\\uploads\\annonces\\7efb5775045740869c38d9aed0d82ba3.jpg"
     },
     {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\88019cbc3f46436ba1be43d92ed270a7.jpg",
+      "PackagePath": "staticwebassets\\uploads\\annonces\\88019cbc3f46436ba1be43d92ed270a7.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\annonces\\9e0700dab2c746ec89ba09d9680e1d3d.jpg",
+      "PackagePath": "staticwebassets\\uploads\\annonces\\9e0700dab2c746ec89ba09d9680e1d3d.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\profiles\\2b1a6eec0dfb49a9b6ffc45f221b2edf.jpg",
+      "PackagePath": "staticwebassets\\uploads\\profiles\\2b1a6eec0dfb49a9b6ffc45f221b2edf.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\profiles\\388562e793594456a0819618f9723ef2.jpg",
+      "PackagePath": "staticwebassets\\uploads\\profiles\\388562e793594456a0819618f9723ef2.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\profiles\\8dbb72925fad45889d2bc48781e210f0.jpg",
+      "PackagePath": "staticwebassets\\uploads\\profiles\\8dbb72925fad45889d2bc48781e210f0.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\profiles\\aef5d5bde5894196bb554e12eedd31c3.jpg",
+      "PackagePath": "staticwebassets\\uploads\\profiles\\aef5d5bde5894196bb554e12eedd31c3.jpg"
+    },
+    {
+      "Id": "E:\\my work\\api\\wwwroot\\uploads\\profiles\\df209a18f96f46b4a24d71f10f6b61ea.jpg",
+      "PackagePath": "staticwebassets\\uploads\\profiles\\df209a18f96f46b4a24d71f10f6b61ea.jpg"
+    },
+    {
       "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.api.Microsoft.AspNetCore.StaticWebAssets.props",
       "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
     },

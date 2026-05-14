@@ -196,9 +196,12 @@ public class AnnonceRepository : IAnnonceRepository
                    ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName,
                    u.PhotoProfilUrl AS AdSellerPhoto,
                    u.Telephone AS AdSellerPhone,
-                   u.Ville as AdSellerVille 
+                   u.Ville as AdSellerVille,
+                   c.Nom AS AdCategoryName,
+                   c.SupportePaiement
             FROM Annonces a 
             LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur 
+            LEFT JOIN Categories c ON a.IdCategorie = c.IdCategorie
             WHERE a.IdAnnonce = @Id";
         using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@Id", id);
@@ -218,13 +221,19 @@ public class AnnonceRepository : IAnnonceRepository
         await connection.OpenAsync();
 
         var queryParams = new Dictionary<string, object>();
-        var whereClauses = new List<string> { "a.Statut = 1", "a.EstActive = 1" };
+        var whereClauses = new List<string> { "a.Statut = 1", "a.EstActive = 1", "u.StatutCompte = 1" };
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
-            whereClauses.Add("(a.Titre LIKE @Keyword OR a.Titre LIKE @KeywordWord OR a.Description LIKE @Keyword OR a.Description LIKE @KeywordWord)");
+            whereClauses.Add(@"(a.Titre LIKE @Keyword 
+                               OR a.Titre LIKE @KeywordWord 
+                               OR a.Description LIKE @Keyword 
+                               OR a.Description LIKE @KeywordWord
+                               OR ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') LIKE @KeywordAny
+                               OR ISNULL(u.Nom, '') + ' ' + ISNULL(u.Prenom, '') LIKE @KeywordAny)");
             queryParams.Add("@Keyword", $"{request.Keyword}%");
             queryParams.Add("@KeywordWord", $"% {request.Keyword}%");
+            queryParams.Add("@KeywordAny", $"%{request.Keyword}%");
         }
 
         if (request.IdCategorie.HasValue)
@@ -338,6 +347,7 @@ public class AnnonceRepository : IAnnonceRepository
             SELECT 
                 a.IdAnnonce, a.IdUtilisateur, a.IdCategorie, 
                 ISNULL(c.Nom, 'Sans catégorie') AS AdCategoryName, 
+                c.SupportePaiement,
                 a.Titre, a.Prix, a.Localisation, a.Statut, a.DateCreation, 
                 img.Url AS MainImageUrl,
                 ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName,
@@ -411,6 +421,14 @@ public class AnnonceRepository : IAnnonceRepository
             whereClauses.Add("a.EstActive = @EstActive");
             parameters.Add(new SqlParameter("@EstActive", estActif.Value));
         }
+
+        // Always exclude ads from blocked users in public/paged views if not admin
+        // Note: Admin views usually don't pass estActif=true or statut=PUBLIEE exclusively, 
+        // but for safety we check if we are in a 'active only' context.
+        if (estActif == true || statut == StatutAnnonce.PUBLIEE)
+        {
+             whereClauses.Add("u.StatutCompte = 1");
+        }
         if (idUtilisateur.HasValue)
         {
             whereClauses.Add("a.IdUtilisateur = @IdUtilisateur");
@@ -418,14 +436,22 @@ public class AnnonceRepository : IAnnonceRepository
         }
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            whereClauses.Add("(a.Titre LIKE @Keyword OR a.Titre LIKE @KeywordWord OR a.Description LIKE @Keyword OR a.Description LIKE @KeywordWord)");
+            whereClauses.Add(@"(a.Titre LIKE @Keyword 
+                               OR a.Titre LIKE @KeywordWord 
+                               OR a.Description LIKE @Keyword 
+                               OR a.Description LIKE @KeywordWord
+                               OR ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') LIKE @KeywordAny
+                               OR ISNULL(u.Nom, '') + ' ' + ISNULL(u.Prenom, '') LIKE @KeywordAny)");
             parameters.Add(new SqlParameter("@Keyword", $"{keyword}%"));
             parameters.Add(new SqlParameter("@KeywordWord", $"% {keyword}%"));
+            parameters.Add(new SqlParameter("@KeywordAny", $"%{keyword}%"));
         }
 
         string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
 
-        string countSql = $"SELECT COUNT(*) FROM Annonces a {whereSql}";
+        string countSql = $@"SELECT COUNT(*) FROM Annonces a 
+                            LEFT JOIN Utilisateurs u ON a.IdUtilisateur = u.IdUtilisateur 
+                            {whereSql}";
         using var countCmd = new SqlCommand(countSql, connection);
         foreach (var p in parameters) countCmd.Parameters.Add(new SqlParameter(p.ParameterName, p.Value));
         var totalCountObj = await countCmd.ExecuteScalarAsync();
@@ -435,6 +461,7 @@ public class AnnonceRepository : IAnnonceRepository
             SELECT 
                 a.*, 
                 ISNULL(c.Nom, 'Sans catégorie') AS AdCategoryName,
+                c.SupportePaiement,
                 ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') AS AdSellerName, 
                 u.PhotoProfilUrl AS AdSellerPhoto,
                 u.Telephone AS AdSellerPhone,
@@ -534,6 +561,34 @@ public class AnnonceRepository : IAnnonceRepository
         return await command.ExecuteNonQueryAsync() > 0;
     }
 
+    public async Task<int> SuspendAllUserAnnoncesAsync(long idUtilisateur)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = "UPDATE Annonces SET Statut = @Statut WHERE IdUtilisateur = @IdUtilisateur AND Statut = @PubStatut";
+        
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Statut", (int)StatutAnnonce.SUSPENDUE);
+        command.Parameters.AddWithValue("@PubStatut", (int)StatutAnnonce.PUBLIEE);
+        command.Parameters.AddWithValue("@IdUtilisateur", idUtilisateur);
+        
+        await connection.OpenAsync();
+        return await command.ExecuteNonQueryAsync();
+    }
+
+    public async Task<int> RestoreAllUserAnnoncesAsync(long idUtilisateur)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = "UPDATE Annonces SET Statut = @Statut WHERE IdUtilisateur = @IdUtilisateur AND Statut = @SuspStatut";
+        
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Statut", (int)StatutAnnonce.PUBLIEE);
+        command.Parameters.AddWithValue("@SuspStatut", (int)StatutAnnonce.SUSPENDUE);
+        command.Parameters.AddWithValue("@IdUtilisateur", idUtilisateur);
+        
+        await connection.OpenAsync();
+        return await command.ExecuteNonQueryAsync();
+    }
+
     public async Task<long> AddImageAsync(ImageAnnonce image)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
@@ -584,6 +639,7 @@ public class AnnonceRepository : IAnnonceRepository
             AnnonceurNom = reader.HasColumn("AdSellerName") && reader["AdSellerName"] != DBNull.Value ? (string)reader["AdSellerName"] : null,
             AnnonceurPhotoUrl = reader.HasColumn("AdSellerPhoto") && reader["AdSellerPhoto"] != DBNull.Value ? (string)reader["AdSellerPhoto"] : null,
             AnnonceurTelephone = reader.HasColumn("AdSellerPhone") && reader["AdSellerPhone"] != DBNull.Value ? (string)reader["AdSellerPhone"] : null,
+            SupportePaiement = reader.HasColumn("SupportePaiement") && reader["SupportePaiement"] != DBNull.Value ? (bool)reader["SupportePaiement"] : false,
             MainImageUrl = reader.HasColumn("MainImageUrl") && reader["MainImageUrl"] != DBNull.Value ? (string)reader["MainImageUrl"] : null,
             Ville = reader.HasColumn("AdSellerVille") && reader["AdSellerVille"] != DBNull.Value ? (string)reader["AdSellerVille"] : null
         };

@@ -48,8 +48,7 @@ public class AuthService : IAuthService
             MotDePasseHash = _passwordHasher.HashPassword(request.Password),
             Role = RoleUtilisateur.CLIENT,
             StatutCompte = StatutCompte.ACTIF,
-            DateCreation = DateTime.UtcNow,
-            EstActif = true
+            DateCreation = DateTime.UtcNow
         };
 
         var newUserId = await _repository.CreateUserAsync(user);
@@ -72,6 +71,7 @@ public class AuthService : IAuthService
                 Email = user.Email,
                 Role = user.Role.ToString(),
                 StatutCompte = user.StatutCompte.ToString(),
+                StatutLabel = user.StatutCompte == StatutCompte.ACTIF ? "Actif" : "Bloqué",
                 DateCreation = user.DateCreation,
                 Ville = user.Ville
             }
@@ -84,8 +84,8 @@ public class AuthService : IAuthService
         if (user == null || !_passwordHasher.VerifyPassword(request.Password, user.MotDePasseHash))
             throw new UnauthorizedException("Invalid email or password.");
 
-        if (user.StatutCompte == StatutCompte.INACTIF || user.StatutCompte == StatutCompte.BLOQUE || !user.EstActif)
-            throw new ForbiddenException("Account is not active.");
+        if (user.StatutCompte == StatutCompte.BLOQUE)
+            throw new ForbiddenException("Votre compte est bloqué. Veuillez contacter le support.");
 
         var token = _tokenGenerator.GenerateToken(user.IdUtilisateur, user.Email, user.Role.ToString());
         var refreshToken = _tokenGenerator.GenerateRefreshToken();
@@ -106,6 +106,7 @@ public class AuthService : IAuthService
                 Telephone = user.Telephone,
                 Role = user.Role.ToString(),
                 StatutCompte = user.StatutCompte.ToString(),
+                StatutLabel = user.StatutCompte == StatutCompte.ACTIF ? "Actif" : "Bloqué",
                 DateCreation = user.DateCreation,
                 PhotoProfilUrl = user.PhotoProfilUrl,
                 Adresse = user.Adresse,
@@ -140,6 +141,7 @@ public class AuthService : IAuthService
                 Telephone = user.Telephone,
                 Role = user.Role.ToString(),
                 StatutCompte = user.StatutCompte.ToString(),
+                StatutLabel = user.StatutCompte == StatutCompte.ACTIF ? "Actif" : "Bloqué",
                 DateCreation = user.DateCreation,
                 PhotoProfilUrl = user.PhotoProfilUrl,
                 Adresse = user.Adresse,

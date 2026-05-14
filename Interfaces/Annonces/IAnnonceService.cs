@@ -14,7 +14,7 @@ public interface IAnnonceService
     Task<PagedResponse<AnnonceDto>> GetPublicAnnoncesAsync(int pageNumber, int pageSize);
     Task<PagedResponse<AnnonceDto>> SearchAnnoncesAsync(AnnonceSearchRequestDto request);
     Task<PagedResponse<AnnonceDto>> GetUserAnnoncesAsync(long userId, int pageNumber, int pageSize, string? keyword = null);
-    Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize);
+    Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize, string? search = null);
     Task<bool> SuspendAnnonceAsync(long id);
     Task<bool> RestoreAnnonceAsync(long id);
 }

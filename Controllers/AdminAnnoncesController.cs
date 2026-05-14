@@ -20,9 +20,9 @@ public class AdminAnnoncesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 12)
+    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 12, [FromQuery] string? search = null)
     {
-        var result = await _service.GetAdminAnnoncesAsync(pageNumber, pageSize);
+        var result = await _service.GetAdminAnnoncesAsync(pageNumber, pageSize, search);
         return Ok(ApiResponse<PagedResponse<AnnonceDto>>.Ok(result));
     }
 

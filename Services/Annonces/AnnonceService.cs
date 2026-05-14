@@ -311,6 +311,7 @@ public class AnnonceService : IAnnonceService
             AnnonceurTelephone = user?.Telephone,
             IdCategorie = annonce.IdCategorie,
             CategorieNom = category?.Nom ?? "Unknown",
+            SupportePaiement = annonce.SupportePaiement,
             Titre = annonce.Titre,
             Description = annonce.Description,
             Prix = annonce.Prix,
@@ -375,9 +376,9 @@ public class AnnonceService : IAnnonceService
         return await MapToPagedDto(items, total, pageNumber, pageSize);
     }
 
-    public async Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize)
+    public async Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize, string? search = null)
     {
-        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize);
+        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, null, null, null, search);
         return await MapToPagedDto(items, total, pageNumber, pageSize);
     }
 
@@ -567,6 +568,7 @@ public class AnnonceService : IAnnonceService
                 IdUtilisateur = a.IdUtilisateur,
                 IdCategorie = a.IdCategorie,
                 CategorieNom = a.CategorieNom ?? "Catégorie Inconnue",
+                SupportePaiement = a.SupportePaiement,
                 Titre = a.Titre,
                 Prix = a.Prix,
                 Localisation = a.Localisation,

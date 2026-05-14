@@ -27,40 +27,54 @@ public class GlobalExceptionMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An unhandled exception occurred.");
             await HandleExceptionAsync(context, ex);
         }
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
         
         var statusCode = (int)HttpStatusCode.InternalServerError;
         var message = "An internal server error occurred.";
+        bool isClientError = false;
 
         switch (exception)
         {
             case BadRequestException:
                 statusCode = (int)HttpStatusCode.BadRequest;
                 message = exception.Message;
+                isClientError = true;
                 break;
             case NotFoundException:
                 statusCode = (int)HttpStatusCode.NotFound;
                 message = exception.Message;
+                isClientError = true;
                 break;
             case UnauthorizedException:
                 statusCode = (int)HttpStatusCode.Unauthorized;
                 message = exception.Message;
+                isClientError = true;
                 break;
             case ForbiddenException:
                 statusCode = (int)HttpStatusCode.Forbidden;
                 message = exception.Message;
+                isClientError = true;
                 break;
             case ConflictException:
                 statusCode = (int)HttpStatusCode.Conflict;
                 message = exception.Message;
+                isClientError = true;
                 break;
+        }
+
+        if (isClientError)
+        {
+            _logger.LogWarning("Client error ({StatusCode}): {Message}", statusCode, message);
+        }
+        else
+        {
+            _logger.LogError(exception, "An unhandled server exception occurred.");
         }
 
         context.Response.StatusCode = statusCode;
@@ -68,6 +82,6 @@ public class GlobalExceptionMiddleware
         var response = ApiResponse<object>.Fail(message);
         var jsonResponse = JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-        return context.Response.WriteAsync(jsonResponse);
+        await context.Response.WriteAsync(jsonResponse);
     }
 }

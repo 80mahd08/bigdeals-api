@@ -20,6 +20,7 @@ public class Annonce
 
     // Search Result Helpers (Populated in Repository.SearchAsync)
     public string? CategorieNom { get; set; }
+    public bool SupportePaiement { get; set; }
     public string? MainImageUrl { get; set; }
     public string? AnnonceurNom { get; set; }
     public string? AnnonceurPhotoUrl { get; set; }

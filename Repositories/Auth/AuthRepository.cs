@@ -32,7 +32,7 @@ public class AuthRepository : IAuthRepository
     public async Task<Utilisateur?> GetUserByEmailAsync(string email)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var command = new SqlCommand("SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, DerniereConnexion, PhotoProfilUrl, Adresse, EstActif, Ville FROM Utilisateurs WHERE Email = @Email", (SqlConnection)connection);
+        var command = new SqlCommand("SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, PhotoProfilUrl, Adresse, Ville FROM Utilisateurs WHERE Email = @Email", (SqlConnection)connection);
         command.Parameters.AddWithValue("@Email", email);
 
         await ((SqlConnection)connection).OpenAsync();
@@ -51,10 +51,8 @@ public class AuthRepository : IAuthRepository
                 Role = (RoleUtilisateur)reader.GetInt32(reader.GetOrdinal("Role")),
                 StatutCompte = (StatutCompte)reader.GetInt32(reader.GetOrdinal("StatutCompte")),
                 DateCreation = reader.GetDateTime(reader.GetOrdinal("DateCreation")),
-                DerniereConnexion = reader.IsDBNull(reader.GetOrdinal("DerniereConnexion")) ? null : reader.GetDateTime(reader.GetOrdinal("DerniereConnexion")),
                 PhotoProfilUrl = reader.IsDBNull(reader.GetOrdinal("PhotoProfilUrl")) ? null : reader.GetString(reader.GetOrdinal("PhotoProfilUrl")),
                 Adresse = reader.IsDBNull(reader.GetOrdinal("Adresse")) ? null : reader.GetString(reader.GetOrdinal("Adresse")),
-                EstActif = reader.GetBoolean(reader.GetOrdinal("EstActif")),
                 Ville = reader.IsDBNull(reader.GetOrdinal("Ville")) ? null : reader.GetString(reader.GetOrdinal("Ville"))
             };
         }
@@ -65,7 +63,7 @@ public class AuthRepository : IAuthRepository
     public async Task<Utilisateur?> GetByIdAsync(long idUtilisateur)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var command = new SqlCommand("SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, DerniereConnexion, PhotoProfilUrl, Adresse, EstActif, Ville FROM Utilisateurs WHERE IdUtilisateur = @IdUtilisateur", (SqlConnection)connection);
+        var command = new SqlCommand("SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, PhotoProfilUrl, Adresse, Ville FROM Utilisateurs WHERE IdUtilisateur = @IdUtilisateur", (SqlConnection)connection);
         command.Parameters.AddWithValue("@IdUtilisateur", idUtilisateur);
 
         await ((SqlConnection)connection).OpenAsync();
@@ -84,10 +82,8 @@ public class AuthRepository : IAuthRepository
                 Role = (RoleUtilisateur)reader.GetInt32(reader.GetOrdinal("Role")),
                 StatutCompte = (StatutCompte)reader.GetInt32(reader.GetOrdinal("StatutCompte")),
                 DateCreation = reader.GetDateTime(reader.GetOrdinal("DateCreation")),
-                DerniereConnexion = reader.IsDBNull(reader.GetOrdinal("DerniereConnexion")) ? null : reader.GetDateTime(reader.GetOrdinal("DerniereConnexion")),
                 PhotoProfilUrl = reader.IsDBNull(reader.GetOrdinal("PhotoProfilUrl")) ? null : reader.GetString(reader.GetOrdinal("PhotoProfilUrl")),
                 Adresse = reader.IsDBNull(reader.GetOrdinal("Adresse")) ? null : reader.GetString(reader.GetOrdinal("Adresse")),
-                EstActif = reader.GetBoolean(reader.GetOrdinal("EstActif")),
                 Ville = reader.IsDBNull(reader.GetOrdinal("Ville")) ? null : reader.GetString(reader.GetOrdinal("Ville"))
             };
         }
@@ -99,9 +95,9 @@ public class AuthRepository : IAuthRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var command = new SqlCommand(@"
-            INSERT INTO Utilisateurs (Nom, Prenom, Email, MotDePasseHash, Role, StatutCompte, DateCreation, EstActif)
+            INSERT INTO Utilisateurs (Nom, Prenom, Email, MotDePasseHash, Role, StatutCompte, DateCreation, Ville)
             OUTPUT INSERTED.IdUtilisateur
-            VALUES (@Nom, @Prenom, @Email, @MotDePasseHash, @Role, @StatutCompte, @DateCreation, @EstActif)", 
+            VALUES (@Nom, @Prenom, @Email, @MotDePasseHash, @Role, @StatutCompte, @DateCreation, @Ville)", 
             (SqlConnection)connection);
 
         command.Parameters.AddWithValue("@Nom", user.Nom);
@@ -111,7 +107,7 @@ public class AuthRepository : IAuthRepository
         command.Parameters.AddWithValue("@Role", (int)user.Role);
         command.Parameters.AddWithValue("@StatutCompte", (int)user.StatutCompte);
         command.Parameters.AddWithValue("@DateCreation", user.DateCreation);
-        command.Parameters.AddWithValue("@EstActif", user.EstActif);
+        command.Parameters.AddWithValue("@Ville", (object?)user.Ville ?? DBNull.Value);
 
         await ((SqlConnection)connection).OpenAsync();
         var result = await command.ExecuteScalarAsync();
@@ -213,7 +209,7 @@ public class AuthRepository : IAuthRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var command = new SqlCommand(@"
-            SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, DerniereConnexion, PhotoProfilUrl, Adresse, EstActif, Ville, RefreshToken, RefreshTokenExpiry 
+            SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, PhotoProfilUrl, Adresse, Ville, RefreshToken, RefreshTokenExpiry 
             FROM Utilisateurs 
             WHERE RefreshToken = @Token", 
             (SqlConnection)connection);
@@ -235,10 +231,8 @@ public class AuthRepository : IAuthRepository
                 Role = (RoleUtilisateur)reader.GetInt32(reader.GetOrdinal("Role")),
                 StatutCompte = (StatutCompte)reader.GetInt32(reader.GetOrdinal("StatutCompte")),
                 DateCreation = reader.GetDateTime(reader.GetOrdinal("DateCreation")),
-                DerniereConnexion = reader.IsDBNull(reader.GetOrdinal("DerniereConnexion")) ? null : reader.GetDateTime(reader.GetOrdinal("DerniereConnexion")),
                 PhotoProfilUrl = reader.IsDBNull(reader.GetOrdinal("PhotoProfilUrl")) ? null : reader.GetString(reader.GetOrdinal("PhotoProfilUrl")),
                 Adresse = reader.IsDBNull(reader.GetOrdinal("Adresse")) ? null : reader.GetString(reader.GetOrdinal("Adresse")),
-                EstActif = reader.GetBoolean(reader.GetOrdinal("EstActif")),
                 Ville = reader.IsDBNull(reader.GetOrdinal("Ville")) ? null : reader.GetString(reader.GetOrdinal("Ville")),
                 RefreshToken = reader.IsDBNull(reader.GetOrdinal("RefreshToken")) ? null : reader.GetString(reader.GetOrdinal("RefreshToken")),
                 RefreshTokenExpiry = reader.IsDBNull(reader.GetOrdinal("RefreshTokenExpiry")) ? null : reader.GetDateTime(reader.GetOrdinal("RefreshTokenExpiry"))

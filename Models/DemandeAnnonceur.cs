@@ -7,6 +7,13 @@ public class DemandeAnnonceur
 {
     public long IdDemandeAnnonceur { get; set; }
     public long IdUtilisateur { get; set; }
+    
+    // Joined fields from Utilisateurs
+    public string? NomUtilisateur { get; set; }
+    public string? PrenomUtilisateur { get; set; }
+    public string? PhotoProfilUrl { get; set; }
+    public string? EmailUtilisateur { get; set; }
+
     public StatutDemandeAnnonceur Statut { get; set; }
     public string DocumentUrl { get; set; } = string.Empty;
     public string DocumentNomOriginal { get; set; } = string.Empty;

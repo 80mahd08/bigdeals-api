@@ -6,4 +6,5 @@ namespace api.Interfaces.Admin;
 public interface IAdminDashboardService
 {
     Task<AdminDashboardStatsDto> GetDashboardStatsAsync();
+    Task<AdminGrowthChartDto> GetGrowthChartAsync(string metric, string period);
 }

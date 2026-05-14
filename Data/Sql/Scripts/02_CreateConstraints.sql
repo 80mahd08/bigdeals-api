@@ -29,7 +29,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE name = 'CHK_Utilisateurs_Role' AN
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE name = 'CHK_Utilisateurs_StatutCompte' AND type = 'C')
-    ALTER TABLE dbo.Utilisateurs ADD CONSTRAINT CHK_Utilisateurs_StatutCompte CHECK (StatutCompte IN (1, 2, 3, 4));
+    ALTER TABLE dbo.Utilisateurs ADD CONSTRAINT CHK_Utilisateurs_StatutCompte CHECK (StatutCompte IN (1, 2));
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE name = 'CHK_DemandesAnnonceur_Statut' AND type = 'C')

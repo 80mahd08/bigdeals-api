@@ -63,7 +63,8 @@ CREATE TABLE #CategorySeed
     Nom NVARCHAR(100) NOT NULL,
     Description NVARCHAR(500) NULL,
     IconKey NVARCHAR(100) NULL,
-    OrdreAffichage INT NOT NULL
+    OrdreAffichage INT NOT NULL,
+    SupportePaiement BIT NOT NULL
 );
 
 CREATE TABLE #AttributeSeed
@@ -87,18 +88,18 @@ CREATE TABLE #OptionSeed
 ------------------------------------------------------------
 -- 2. Categories
 ------------------------------------------------------------
-INSERT INTO #CategorySeed (Nom, Description, IconKey, OrdreAffichage)
+INSERT INTO #CategorySeed (Nom, Description, IconKey, OrdreAffichage, SupportePaiement)
 VALUES
-(N'Véhicules', N'Voitures, motos, camions et autres véhicules.', N'ri-car-line', 1),
-(N'Immobilier', N'Maisons, appartements, terrains et biens immobiliers.', N'ri-home-4-line', 2),
-(N'Téléphones', N'Téléphones, smartphones et accessoires mobiles.', N'ri-smartphone-line', 3),
-(N'Informatique', N'Ordinateurs, composants, écrans et matériel informatique.', N'ri-computer-line', 4),
-(N'Mode', N'Veêtements, chaussures, accessoires et articles de mode.', N'ri-shirt-line', 5),
-(N'Beauté', N'Produits de beauté, soin, parfums et cosmétique.', N'ri-magic-line', 6),
-(N'Maison', N'Meubles, décoration, électroménager et articles maison.', N'ri-home-heart-line', 7),
-(N'Jardin', N'Plantes, outils, mobilier et articles de jardin.', N'ri-leaf-line', 8),
-(N'Services', N'Services professionnels, réparation, transport et assistance.', N'ri-tools-line', 9),
-(N'Emploi', N'Offres d’emploi, stages, missions et opportunités de travail.', N'ri-briefcase-line', 10);
+(N'Véhicules', N'Voitures, motos, camions et autres véhicules.', N'ri-car-line', 1, 0),
+(N'Immobilier', N'Maisons, appartements, terrains et biens immobiliers.', N'ri-home-4-line', 2, 0),
+(N'Téléphones', N'Téléphones, smartphones et accessoires mobiles.', N'ri-smartphone-line', 3, 1),
+(N'Informatique', N'Ordinateurs, composants, écrans et matériel informatique.', N'ri-computer-line', 4, 1),
+(N'Mode', N'Veêtements, chaussures, accessoires et articles de mode.', N'ri-shirt-line', 5, 1),
+(N'Beauté', N'Produits de beauté, soin, parfums et cosmétique.', N'ri-magic-line', 6, 1),
+(N'Maison', N'Meubles, décoration, électroménager et articles maison.', N'ri-home-heart-line', 7, 1),
+(N'Jardin', N'Plantes, outils, mobilier et articles de jardin.', N'ri-leaf-line', 8, 1),
+(N'Services', N'Services professionnels, réparation, transport et assistance.', N'ri-tools-line', 9, 0),
+(N'Emploi', N'Offres d’emploi, stages, missions et opportunités de travail.', N'ri-briefcase-line', 10, 0);
 
 ------------------------------------------------------------
 -- 3. Attributes
@@ -733,8 +734,8 @@ BEGIN TRY
     ------------------------------------------------------------
     -- Insert categories
     ------------------------------------------------------------
-    INSERT INTO dbo.Categories (Nom, Description, IconKey, OrdreAffichage, DateCreation)
-    SELECT Nom, Description, IconKey, OrdreAffichage, SYSUTCDATETIME()
+    INSERT INTO dbo.Categories (Nom, Description, IconKey, OrdreAffichage, SupportePaiement, DateCreation)
+    SELECT Nom, Description, IconKey, OrdreAffichage, SupportePaiement, SYSUTCDATETIME()
     FROM #CategorySeed;
 
     ------------------------------------------------------------

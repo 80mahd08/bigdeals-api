@@ -5,7 +5,7 @@ const rootDir = __dirname;
 const outputFile = path.join(rootDir, 'FullCodebase.txt');
 
 const ignoredDirs = ['bin', 'obj', '.git', 'node_modules', 'wwwroot/uploads', '.antigravity', '.gemini', "frontend/velzon19Ang", "frontend/dist", ".angular"];
-const allowedExtensions = ['.cs', '.json', '.csproj', '.sln', '.js', '.txt', '.md', '.ts', '.html', '.scss', '.css'];
+const allowedExtensions = ['.cs', '.json', '.csproj', '.sln' , ".sql", '.js', '.txt', '.md', '.ts', '.html', '.scss', '.css'];
 
 function getFiles(dir, fileList = []) {
     const files = fs.readdirSync(dir);

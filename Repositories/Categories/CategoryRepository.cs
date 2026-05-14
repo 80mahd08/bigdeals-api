@@ -21,7 +21,7 @@ public class CategoryRepository : ICategoryRepository
     public async Task<IReadOnlyList<Categorie>> GetAllAsync()
     {
         using var connection = _connectionFactory.CreateConnection();
-        const string sql = "SELECT IdCategorie, Nom, Description, IconKey, OrdreAffichage, DateCreation FROM Categories ORDER BY OrdreAffichage, Nom";
+        const string sql = "SELECT IdCategorie, Nom, Description, IconKey, OrdreAffichage, SupportePaiement, DateCreation FROM Categories ORDER BY OrdreAffichage, Nom";
         using var command = new SqlCommand(sql, (SqlConnection)connection);
         
         if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
@@ -38,7 +38,7 @@ public class CategoryRepository : ICategoryRepository
     public async Task<Categorie?> GetByIdAsync(int id)
     {
         using var connection = _connectionFactory.CreateConnection();
-        const string sql = "SELECT IdCategorie, Nom, Description, IconKey, OrdreAffichage, DateCreation FROM Categories WHERE IdCategorie = @Id";
+        const string sql = "SELECT IdCategorie, Nom, Description, IconKey, OrdreAffichage, SupportePaiement, DateCreation FROM Categories WHERE IdCategorie = @Id";
         using var command = new SqlCommand(sql, (SqlConnection)connection);
         command.Parameters.AddWithValue("@Id", id);
         
@@ -97,6 +97,7 @@ public class CategoryRepository : ICategoryRepository
             Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description")),
             IconKey = reader.IsDBNull(reader.GetOrdinal("IconKey")) ? null : reader.GetString(reader.GetOrdinal("IconKey")),
             OrdreAffichage = reader.GetInt32(reader.GetOrdinal("OrdreAffichage")),
+            SupportePaiement = reader.GetBoolean(reader.GetOrdinal("SupportePaiement")),
             DateCreation = reader.GetDateTime(reader.GetOrdinal("DateCreation"))
         };
     }

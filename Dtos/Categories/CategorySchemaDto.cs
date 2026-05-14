@@ -8,5 +8,6 @@ public class CategorySchemaDto
     public string Nom { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? IconKey { get; set; }
+    public bool SupportePaiement { get; set; }
     public List<AttributeCategoryDto> Attributs { get; set; } = new();
 }

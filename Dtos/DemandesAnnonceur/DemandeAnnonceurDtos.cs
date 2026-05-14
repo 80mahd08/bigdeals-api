@@ -14,6 +14,14 @@ public class DemandeAnnonceurDto
 {
     public long IdDemandeAnnonceur { get; set; }
     public long IdUtilisateur { get; set; }
+    
+    // User Details (Joined)
+    public string NomUtilisateur { get; set; } = string.Empty;
+    public string PrenomUtilisateur { get; set; } = string.Empty;
+    public string NomCompletUtilisateur { get; set; } = string.Empty;
+    public string EmailUtilisateur { get; set; } = string.Empty;
+    public string? PhotoProfilUrl { get; set; }
+
     public string Statut { get; set; } = string.Empty;
     public string DocumentUrl { get; set; } = string.Empty;
     public string DocumentNomOriginal { get; set; } = string.Empty;

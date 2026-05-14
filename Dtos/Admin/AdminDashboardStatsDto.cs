@@ -21,8 +21,6 @@ public class StatTrendDto
     public string Value { get; set; } = string.Empty;
     public string Icon { get; set; } = string.Empty;
     public string Color { get; set; } = string.Empty;
-    public int Trend { get; set; }
-    public bool TrendUp { get; set; }
 }
 
 public class RecentActivityDto

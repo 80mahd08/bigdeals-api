@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using api.Models.Enums;
 using api.Dtos.Users;
 using api.Exceptions;
 using api.Helpers.Security;
@@ -45,6 +46,7 @@ public class UserService : IUserService
             Telephone = user.Telephone,
             Role = user.Role.ToString(),
             StatutCompte = user.StatutCompte.ToString(),
+            StatutLabel = user.StatutCompte == StatutCompte.ACTIF ? "Actif" : "Bloqué",
             DateCreation = user.DateCreation,
             PhotoProfilUrl = user.PhotoProfilUrl,
             Adresse = user.Adresse,
@@ -67,7 +69,20 @@ public class UserService : IUserService
         if (request.Prenom != null) user.Prenom = request.Prenom;
         
         // Always assign these fields to allow clearing them (null updates)
-        user.Telephone = string.IsNullOrWhiteSpace(request.Telephone) ? null : request.Telephone;
+        if (!string.IsNullOrWhiteSpace(request.Telephone))
+        {
+            var phone = request.Telephone.Trim();
+            if (phone.Length != 8 || !System.Text.RegularExpressions.Regex.IsMatch(phone, "^[2579][0-9]{7}$"))
+            {
+                throw new BadRequestException("Le numéro de téléphone doit comporter exactement 8 chiffres et commencer par 2, 5, 7 ou 9.");
+            }
+            user.Telephone = phone;
+        }
+        else
+        {
+            user.Telephone = null;
+        }
+
         user.Adresse = string.IsNullOrWhiteSpace(request.Adresse) ? null : request.Adresse;
         user.Ville = string.IsNullOrWhiteSpace(request.Ville) ? null : request.Ville;
 
@@ -88,10 +103,10 @@ public class UserService : IUserService
     public async Task ChangePasswordAsync(long idUtilisateur, ChangePasswordRequestDto request)
     {
         if (request.NouveauMotDePasse == request.AncienMotDePasse)
-            throw new BadRequestException("New password cannot be the same as the old password.");
+            throw new BadRequestException("Le nouveau mot de passe ne peut pas être identique à l'ancien.");
 
         if (request.NouveauMotDePasse != request.ConfirmationMotDePasse)
-            throw new BadRequestException("New password and confirmation do not match.");
+            throw new BadRequestException("Le nouveau mot de passe et la confirmation ne correspondent pas.");
 
         var user = await _repository.GetByIdAsync(idUtilisateur);
         if (user == null)
@@ -144,6 +159,7 @@ public class UserService : IUserService
             Telephone = user.Telephone,
             Role = user.Role.ToString(),
             StatutCompte = user.StatutCompte.ToString(),
+            StatutLabel = user.StatutCompte == StatutCompte.ACTIF ? "Actif" : "Bloqué",
             DateCreation = user.DateCreation,
             PhotoProfilUrl = user.PhotoProfilUrl,
             Adresse = user.Adresse,

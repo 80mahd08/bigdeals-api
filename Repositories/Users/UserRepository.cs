@@ -20,7 +20,7 @@ public class UserRepository : IUserRepository
     public async Task<Utilisateur?> GetByIdAsync(long idUtilisateur)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var command = new SqlCommand("SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, DerniereConnexion, PhotoProfilUrl, Adresse, EstActif, Ville FROM Utilisateurs WHERE IdUtilisateur = @IdUtilisateur", (SqlConnection)connection);
+        var command = new SqlCommand("SELECT IdUtilisateur, Nom, Prenom, Email, Telephone, MotDePasseHash, Role, StatutCompte, DateCreation, PhotoProfilUrl, Adresse, Ville FROM Utilisateurs WHERE IdUtilisateur = @IdUtilisateur", (SqlConnection)connection);
         command.Parameters.AddWithValue("@IdUtilisateur", idUtilisateur);
 
         await ((SqlConnection)connection).OpenAsync();
@@ -39,10 +39,8 @@ public class UserRepository : IUserRepository
                 Role = (RoleUtilisateur)reader.GetInt32(reader.GetOrdinal("Role")),
                 StatutCompte = (StatutCompte)reader.GetInt32(reader.GetOrdinal("StatutCompte")),
                 DateCreation = reader.GetDateTime(reader.GetOrdinal("DateCreation")),
-                DerniereConnexion = reader.IsDBNull(reader.GetOrdinal("DerniereConnexion")) ? null : reader.GetDateTime(reader.GetOrdinal("DerniereConnexion")),
                 PhotoProfilUrl = reader.IsDBNull(reader.GetOrdinal("PhotoProfilUrl")) ? null : reader.GetString(reader.GetOrdinal("PhotoProfilUrl")),
                 Adresse = reader.IsDBNull(reader.GetOrdinal("Adresse")) ? null : reader.GetString(reader.GetOrdinal("Adresse")),
-                EstActif = reader.GetBoolean(reader.GetOrdinal("EstActif")),
                 Ville = reader.IsDBNull(reader.GetOrdinal("Ville")) ? null : reader.GetString(reader.GetOrdinal("Ville"))
             };
         }
@@ -55,13 +53,17 @@ public class UserRepository : IUserRepository
         using var connection = _connectionFactory.CreateConnection();
         var command = new SqlCommand(@"
             UPDATE Utilisateurs 
-            SET Telephone = @Telephone, 
+            SET Nom = @Nom,
+                Prenom = @Prenom,
+                Telephone = @Telephone, 
                 Adresse = @Adresse, 
                 Ville = @Ville,
                 PhotoProfilUrl = @PhotoProfilUrl
             WHERE IdUtilisateur = @IdUtilisateur", 
             (SqlConnection)connection);
 
+        command.Parameters.AddWithValue("@Nom", user.Nom);
+        command.Parameters.AddWithValue("@Prenom", user.Prenom);
         command.Parameters.AddWithValue("@Telephone", (object?)user.Telephone ?? DBNull.Value);
         command.Parameters.AddWithValue("@Adresse", (object?)user.Adresse ?? DBNull.Value);
         command.Parameters.AddWithValue("@Ville", (object?)user.Ville ?? DBNull.Value);
@@ -77,8 +79,7 @@ public class UserRepository : IUserRepository
         using var connection = _connectionFactory.CreateConnection();
         var command = new SqlCommand(@"
             UPDATE Utilisateurs 
-            SET EstActif = 0, 
-                StatutCompte = 2 -- INACTIF
+            SET StatutCompte = 2 -- BLOQUE
             WHERE IdUtilisateur = @IdUtilisateur", 
             (SqlConnection)connection);
 

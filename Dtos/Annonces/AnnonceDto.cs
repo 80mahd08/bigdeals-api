@@ -8,6 +8,7 @@ public class AnnonceDto
     public long IdUtilisateur { get; set; }
     public int IdCategorie { get; set; }
     public string CategorieNom { get; set; } = string.Empty;
+    public bool SupportePaiement { get; set; }
     public string Titre { get; set; } = string.Empty;
     public decimal Prix { get; set; }
     public string? Localisation { get; set; }

@@ -7,4 +7,5 @@ public class CategoryDto
     public string? Description { get; set; }
     public string? IconKey { get; set; }
     public int OrdreAffichage { get; set; }
+    public bool SupportePaiement { get; set; }
 }

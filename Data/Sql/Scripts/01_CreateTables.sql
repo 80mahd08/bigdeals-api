@@ -14,12 +14,13 @@ BEGIN
         Telephone NVARCHAR(30) NULL,
         MotDePasseHash NVARCHAR(500) NOT NULL,
         Role INT NOT NULL, -- 1=CLIENT, 2=ANNONCEUR, 3=ADMIN
-        StatutCompte INT NOT NULL, -- 1=ACTIF, 2=INACTIF, 3=EN_ATTENTE, 4=BLOQUE
+        StatutCompte INT NOT NULL, -- 1=ACTIF, 2=BLOQUE
         DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        DerniereConnexion DATETIME2 NULL,
         PhotoProfilUrl NVARCHAR(500) NULL,
         Adresse NVARCHAR(300) NULL,
-        EstActif BIT NOT NULL DEFAULT 1
+        Ville NVARCHAR(100) NULL,
+        RefreshToken NVARCHAR(500) NULL,
+        RefreshTokenExpiry DATETIME2 NULL
     );
 END
 GO
@@ -56,6 +57,7 @@ BEGIN
         Description NVARCHAR(500) NULL,
         IconKey NVARCHAR(100) NULL,
         OrdreAffichage INT NOT NULL,
+        SupportePaiement BIT NOT NULL DEFAULT 0,
         DateCreation DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
     );
 END

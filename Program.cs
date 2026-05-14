@@ -73,7 +73,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Register Application Services
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 
 // Rate Limiting
 builder.Services.AddMemoryCache();
