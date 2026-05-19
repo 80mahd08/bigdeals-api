@@ -28,6 +28,8 @@ public class OrdersRepository : IOrdersRepository
             IdAnnonce = Convert.ToInt64(reader["IdAnnonce"]),
             IdAcheteur = Convert.ToInt64(reader["IdAcheteur"]),
             IdAnnonceur = Convert.ToInt64(reader["IdAnnonceur"]),
+            MontantAnnonce = reader["MontantAnnonce"] == DBNull.Value ? 0 : Convert.ToDecimal(reader["MontantAnnonce"]),
+            FraisLivraison = reader["FraisLivraison"] == DBNull.Value ? 0 : Convert.ToDecimal(reader["FraisLivraison"]),
             Montant = Convert.ToDecimal(reader["Montant"]),
             StatutCommande = (StatutCommande)Convert.ToInt32(reader["StatutCommande"]),
             DateCreation = Convert.ToDateTime(reader["DateCreation"]),
@@ -48,7 +50,7 @@ public class OrdersRepository : IOrdersRepository
         var orders = new List<Commande>();
         using var connection = _connectionFactory.CreateConnection();
         const string sql = @"
-            SELECT c.IdCommande, c.IdAnnonce, c.IdAcheteur, c.IdAnnonceur, c.Montant, c.StatutCommande, c.DateCreation,
+            SELECT c.IdCommande, c.IdAnnonce, c.IdAcheteur, c.IdAnnonceur, c.MontantAnnonce, c.FraisLivraison, c.Montant, c.StatutCommande, c.DateCreation,
                    c.StatutLivraison, c.AdresseLivraison, c.VilleLivraison, c.TelephoneLivraison,
                    c.DateExpedition, c.DateLivraison, c.DateDerniereMiseAJourLivraison,
                    a.Titre as AnnonceTitre
@@ -73,7 +75,7 @@ public class OrdersRepository : IOrdersRepository
         var orders = new List<Commande>();
         using var connection = _connectionFactory.CreateConnection();
         const string sql = @"
-            SELECT c.IdCommande, c.IdAnnonce, c.IdAcheteur, c.IdAnnonceur, c.Montant, c.StatutCommande, c.DateCreation,
+            SELECT c.IdCommande, c.IdAnnonce, c.IdAcheteur, c.IdAnnonceur, c.MontantAnnonce, c.FraisLivraison, c.Montant, c.StatutCommande, c.DateCreation,
                    c.StatutLivraison, c.AdresseLivraison, c.VilleLivraison, c.TelephoneLivraison,
                    c.DateExpedition, c.DateLivraison, c.DateDerniereMiseAJourLivraison,
                    a.Titre as AnnonceTitre
@@ -97,7 +99,7 @@ public class OrdersRepository : IOrdersRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         const string sql = @"
-            SELECT c.IdCommande, c.IdAnnonce, c.IdAcheteur, c.IdAnnonceur, c.Montant, c.StatutCommande, c.DateCreation,
+            SELECT c.IdCommande, c.IdAnnonce, c.IdAcheteur, c.IdAnnonceur, c.MontantAnnonce, c.FraisLivraison, c.Montant, c.StatutCommande, c.DateCreation,
                    c.StatutLivraison, c.AdresseLivraison, c.VilleLivraison, c.TelephoneLivraison,
                    c.DateExpedition, c.DateLivraison, c.DateDerniereMiseAJourLivraison,
                    a.Titre as AnnonceTitre
@@ -143,6 +145,8 @@ public class OrdersRepository : IOrdersRepository
                 IdAnnonce = (long)reader["IdAnnonce"],
                 IdAcheteur = (long)reader["IdAcheteur"],
                 IdAnnonceur = (long)reader["IdAnnonceur"],
+                MontantAnnonce = reader["MontantAnnonce"] != DBNull.Value ? (decimal)reader["MontantAnnonce"] : 0,
+                FraisLivraison = reader["FraisLivraison"] != DBNull.Value ? (decimal)reader["FraisLivraison"] : 0,
                 Montant = (decimal)reader["Montant"],
                 StatutCommande = (int)reader["StatutCommande"],
                 DateCreation = (DateTime)reader["DateCreation"],
@@ -166,9 +170,9 @@ public class OrdersRepository : IOrdersRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         const string sql = @"
-            INSERT INTO Commandes (IdAnnonce, IdAcheteur, IdAnnonceur, Montant, StatutCommande, StatutLivraison,
+            INSERT INTO Commandes (IdAnnonce, IdAcheteur, IdAnnonceur, MontantAnnonce, FraisLivraison, Montant, StatutCommande, StatutLivraison,
                                    AdresseLivraison, VilleLivraison, TelephoneLivraison, DateCreation)
-            VALUES (@IdAnnonce, @IdAcheteur, @IdAnnonceur, @Montant, @StatutCommande, @StatutLivraison,
+            VALUES (@IdAnnonce, @IdAcheteur, @IdAnnonceur, @MontantAnnonce, @FraisLivraison, @Montant, @StatutCommande, @StatutLivraison,
                     @AdresseLivraison, @VilleLivraison, @TelephoneLivraison, @DateCreation);
             SELECT CAST(SCOPE_IDENTITY() as BIGINT);";
 
@@ -176,6 +180,8 @@ public class OrdersRepository : IOrdersRepository
         cmd.Parameters.AddWithValue("@IdAnnonce", order.IdAnnonce);
         cmd.Parameters.AddWithValue("@IdAcheteur", order.IdAcheteur);
         cmd.Parameters.AddWithValue("@IdAnnonceur", order.IdAnnonceur);
+        cmd.Parameters.AddWithValue("@MontantAnnonce", order.MontantAnnonce);
+        cmd.Parameters.AddWithValue("@FraisLivraison", order.FraisLivraison);
         cmd.Parameters.AddWithValue("@Montant", order.Montant);
         cmd.Parameters.AddWithValue("@StatutCommande", (int)order.StatutCommande);
         cmd.Parameters.AddWithValue("@StatutLivraison", (int)order.StatutLivraison);
@@ -229,5 +235,56 @@ public class OrdersRepository : IOrdersRepository
         if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
         var rows = await cmd.ExecuteNonQueryAsync();
         return rows > 0;
+    }
+    
+    public async Task<bool> CancelOrderAndRefundAsync(long orderId)
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            // 1. Update Order Statuses
+            const string sqlOrder = @"
+                UPDATE Commandes 
+                SET StatutLivraison = @StatutLivraison, 
+                    StatutCommande = @StatutCommande,
+                    DateDerniereMiseAJourLivraison = @DateMaj
+                WHERE IdCommande = @IdCommande";
+
+            using (var cmd = new SqlCommand(sqlOrder, connection, transaction))
+            {
+                cmd.Parameters.AddWithValue("@StatutLivraison", (int)StatutLivraison.ANNULEE);
+                cmd.Parameters.AddWithValue("@StatutCommande", (int)StatutCommande.ANNULEE);
+                cmd.Parameters.AddWithValue("@DateMaj", DateTime.UtcNow);
+                cmd.Parameters.AddWithValue("@IdCommande", orderId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // 2. Update Payment Status (if exists)
+            const string sqlPayment = @"
+                UPDATE PaiementsCommandes 
+                SET StatutPaiement = @StatutPaiement
+                WHERE IdCommande = @IdCommande AND StatutPaiement = @Accepte";
+
+            using (var cmd = new SqlCommand(sqlPayment, connection, transaction))
+            {
+                cmd.Parameters.AddWithValue("@StatutPaiement", (int)StatutPaiementCommande.REMBOURSE);
+                cmd.Parameters.AddWithValue("@StatutCommande", (int)StatutCommande.ANNULEE);
+                cmd.Parameters.AddWithValue("@IdCommande", orderId);
+                cmd.Parameters.AddWithValue("@Accepte", (int)StatutPaiementCommande.ACCEPTE);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            Console.WriteLine($"[OrdersRepository] CancelOrderAndRefundAsync failed: {ex.Message}");
+            return false;
+        }
     }
 }

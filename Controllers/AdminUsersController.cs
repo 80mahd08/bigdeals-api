@@ -26,9 +26,11 @@ public class AdminUsersController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] int? statutCompte = null,
         [FromQuery] int? role = null,
-        [FromQuery] string? ville = null)
+        [FromQuery] string? ville = null,
+        [FromQuery] string? sortByDateInscription = null,
+        [FromQuery] string? sortByNbAnnonces = null)
     {
-        var result = await _adminUserService.GetUsersAsync(pageNumber, pageSize, search, statutCompte, role, ville);
+        var result = await _adminUserService.GetUsersAsync(pageNumber, pageSize, search, statutCompte, role, ville, sortByDateInscription, sortByNbAnnonces);
         return Ok(ApiResponse<PagedResponse<AdminUserListItemDto>>.Ok(result));
     }
 

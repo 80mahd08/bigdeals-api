@@ -9,7 +9,7 @@ namespace api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "1,2")] // CLIENT and ANNONCEUR
+[Authorize(Roles = "CLIENT,ANNONCEUR")]
 public class ProductPaymentsController : ControllerBase
 {
     private readonly IProductPaymentService _paymentService;

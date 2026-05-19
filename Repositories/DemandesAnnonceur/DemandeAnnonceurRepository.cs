@@ -96,7 +96,7 @@ public class DemandeAnnonceurRepository : IDemandeAnnonceurRepository
         return list;
     }
 
-    public async Task<IReadOnlyList<DemandeAnnonceur>> GetAllPagedAsync(int pageNumber, int pageSize, int? statut, string? search)
+    public async Task<IReadOnlyList<DemandeAnnonceur>> GetAllPagedAsync(int pageNumber, int pageSize, int? statut, string? search, string? sortByDateDemande = null, string? sortByDateTraitement = null)
     {
         var list = new List<DemandeAnnonceur>();
         using var connection = _connectionFactory.CreateConnection();
@@ -109,13 +109,25 @@ public class DemandeAnnonceurRepository : IDemandeAnnonceurRepository
             whereClause += " AND (u.Nom LIKE @Search OR u.Prenom LIKE @Search OR u.Email LIKE @Search OR CAST(d.IdDemandeAnnonceur AS VARCHAR) LIKE @CleanSearch) ";
         }
 
+        string orderByClause = "d.DateDemande DESC"; // Default
+        if (!string.IsNullOrWhiteSpace(sortByDateDemande))
+        {
+            string dir = sortByDateDemande.ToLower() == "asc" ? "ASC" : "DESC";
+            orderByClause = $"d.DateDemande {dir}";
+        }
+        else if (!string.IsNullOrWhiteSpace(sortByDateTraitement))
+        {
+            string dir = sortByDateTraitement.ToLower() == "asc" ? "ASC" : "DESC";
+            orderByClause = $"d.DateTraitement {dir}";
+        }
+
         var query = $@"
             SELECT d.IdDemandeAnnonceur, d.IdUtilisateur, d.Statut, d.DocumentUrl, d.DocumentNomOriginal, d.DocumentType, d.DocumentTaille, d.MotifRejet, d.DateDemande, d.DateTraitement, d.IdAdminTraitant,
                    u.Nom, u.Prenom, u.PhotoProfilUrl, u.Email
             FROM DemandesAnnonceur d
             JOIN Utilisateurs u ON d.IdUtilisateur = u.IdUtilisateur
             {whereClause}
-            ORDER BY d.DateDemande DESC
+            ORDER BY {orderByClause}
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
         var command = new SqlCommand(query, (SqlConnection)connection);

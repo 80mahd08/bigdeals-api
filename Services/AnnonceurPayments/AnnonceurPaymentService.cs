@@ -104,9 +104,9 @@ public class AnnonceurPaymentService : IAnnonceurPaymentService
         return await _paymentRepository.GetByUserIdAsync(currentUserId);
     }
 
-    public async Task<PagedResponse<AnnonceurPaymentDto>> GetAdminPagedAsync(int pageNumber, int pageSize, string? search = null)
+    public async Task<PagedResponse<AnnonceurPaymentDto>> GetAdminPagedAsync(int pageNumber, int pageSize, string? search = null, string? provider = null, int? statutPaiement = null, string? sortByDateCreation = null, string? sortByDateConfirmation = null)
     {
-        return await _paymentRepository.GetAdminPagedAsync(pageNumber, pageSize, search);
+        return await _paymentRepository.GetAdminPagedAsync(pageNumber, pageSize, search, provider, statutPaiement, sortByDateCreation, sortByDateConfirmation);
     }
 
     public async Task<AnnonceurPaymentDto> MarkMockPaymentAsPaidAsync(long annonceurPaymentId, long adminId)

@@ -90,6 +90,20 @@ public class OrdersController : ControllerBase
         var result = await _ordersService.UpdateDeliveryStatusAsync(idCommande, userId, request, isAdmin: false);
         return Ok(result);
     }
+    
+    // ─── Announcer: cancel order ─────────────────────────────────
+    [HttpPatch("announcer/{idCommande}/cancel")]
+    [Authorize(Roles = "ANNONCEUR")]
+    public async Task<IActionResult> AnnouncerCancelOrder(long idCommande)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
+            return Unauthorized();
+
+        var result = await _ordersService.AnnouncerCancelOrderAsync(idCommande, userId);
+        return Ok(result);
+    }
+
 
     // ─── Admin: update delivery status ───────────────────────────
     [HttpPatch("admin/{idCommande}/delivery-status")]

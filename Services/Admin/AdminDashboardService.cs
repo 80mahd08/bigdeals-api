@@ -57,8 +57,12 @@ public class AdminDashboardService : IAdminDashboardService
             totalRevenue = result != DBNull.Value && result != null ? Convert.ToDecimal(result) : 0;
         }
 
-        // 5. Flagged Ads (Mocked for now)
-        stats.FlaggedAds = 0;
+        // 5. Flagged Ads (Pending Signalements)
+        using (var cmd = new SqlCommand("SELECT COUNT(*) FROM Signalements WHERE Statut = 1", connection))
+        {
+            var result = await cmd.ExecuteScalarAsync();
+            stats.FlaggedAds = result != null ? Convert.ToInt32(result) : 0;
+        }
 
         // Populate Stats list for the UI
         stats.Stats = new List<StatTrendDto>
@@ -103,11 +107,6 @@ public class AdminDashboardService : IAdminDashboardService
             Period = period,
             Title = GetTitleForMetric(metric)
         };
-
-        if (metric == "signalements")
-        {
-            return chart; // Return empty as requested
-        }
 
         var endDate = DateTime.UtcNow.Date;
         var startDate = endDate;
@@ -175,6 +174,23 @@ public class AdminDashboardService : IAdminDashboardService
                         FROM PaiementsAnnonceur
                         WHERE DateConfirmation >= @StartDate AND StatutPaiement = 2
                         GROUP BY CAST(DateConfirmation AS DATE)";
+            }
+        }
+        else if (metric == "signalements")
+        {
+            if (isMonthly)
+            {
+                sql = @"SELECT YEAR(DateCreation) as Y, MONTH(DateCreation) as M, COUNT(*) as V
+                        FROM Signalements
+                        WHERE DateCreation >= @StartDate
+                        GROUP BY YEAR(DateCreation), MONTH(DateCreation)";
+            }
+            else
+            {
+                sql = @"SELECT CAST(DateCreation AS DATE) as D, COUNT(*) as V
+                        FROM Signalements
+                        WHERE DateCreation >= @StartDate
+                        GROUP BY CAST(DateCreation AS DATE)";
             }
         }
 

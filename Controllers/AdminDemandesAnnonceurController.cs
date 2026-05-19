@@ -28,14 +28,16 @@ public class AdminDemandesAnnonceurController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] int? statut = null,
-        [FromQuery] string? search = null)
+        [FromQuery] string? search = null,
+        [FromQuery] string? sortByDateDemande = null,
+        [FromQuery] string? sortByDateTraitement = null)
     {
         // Clamp pageSize to max 50
         if (pageSize > 50) pageSize = 50;
         if (pageSize < 1) pageSize = 10;
         if (pageNumber < 1) pageNumber = 1;
 
-        var (items, totalCount) = await _service.GetAllRequestsPagedAsync(pageNumber, pageSize, statut, search);
+        var (items, totalCount) = await _service.GetAllRequestsPagedAsync(pageNumber, pageSize, statut, search, sortByDateDemande, sortByDateTraitement);
         
         var response = new PagedResponse<DemandeAnnonceurDto>(items, totalCount, pageNumber, pageSize);
         return Ok(ApiResponse<PagedResponse<DemandeAnnonceurDto>>.Ok(response));

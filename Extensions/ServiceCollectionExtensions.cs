@@ -33,13 +33,15 @@ using api.Services.AnnonceurPayments;
 using api.Repositories.Admin;
 using api.Interfaces.Checkout;
 using api.Repositories.Checkout;
-using api.Services.Checkout;
 using api.Interfaces.ProductPayments;
 using api.Repositories.ProductPayments;
 using api.Services.ProductPayments;
 using api.Interfaces.Orders;
 using api.Repositories.Orders;
 using api.Services.Orders;
+using api.Interfaces.Signalements;
+using api.Repositories.Signalements;
+using api.Services.Signalements;
 namespace api.Extensions;
 
 public static class ServiceCollectionExtensions
@@ -72,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICheckoutRepository, CheckoutRepository>();
         services.AddScoped<IProductPaymentRepository, ProductPaymentRepository>();
         services.AddScoped<IOrdersRepository, OrdersRepository>();
+        services.AddScoped<ISignalementRepository, SignalementRepository>();
 
         // Services
         services.AddScoped<IAuthService, AuthService>();
@@ -87,9 +90,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IAvisService, AvisService>();
         services.AddScoped<IAnnonceurPaymentService, AnnonceurPaymentService>();
-        services.AddScoped<ICheckoutService, CheckoutService>();
         services.AddScoped<IProductPaymentService, ProductPaymentService>();
         services.AddScoped<IOrdersService, OrdersService>();
+        services.AddScoped<ISignalementService, SignalementService>();
 
         // External Services
         services.AddHttpClient<IFlouciAnnonceurPaymentService, FlouciAnnonceurPaymentService>();

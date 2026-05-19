@@ -65,6 +65,18 @@ public class AuthController : ControllerBase
         return Ok(ApiResponse<object>.Ok(null, "Mot de passe réinitialisé avec succès."));
     }
 
+    [HttpPost("sync-session")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<AuthResponseDto>>> SyncSession()
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !long.TryParse(userIdClaim, out var userId))
+            return Unauthorized(ApiResponse<AuthResponseDto>.Fail("Invalid session."));
+
+        var response = await _authService.SyncSessionAsync(userId);
+        return Ok(ApiResponse<AuthResponseDto>.Ok(response, "Session synchronized."));
+    }
+
     private void SetRefreshTokenCookie(string refreshToken)
     {
         var cookieOptions = new Microsoft.AspNetCore.Http.CookieOptions

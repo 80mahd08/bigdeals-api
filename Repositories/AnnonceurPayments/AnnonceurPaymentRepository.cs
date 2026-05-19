@@ -164,7 +164,7 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
         return list;
     }
 
-    public async Task<PagedResponse<AnnonceurPaymentDto>> GetAdminPagedAsync(int pageNumber, int pageSize, string? search = null)
+    public async Task<PagedResponse<AnnonceurPaymentDto>> GetAdminPagedAsync(int pageNumber, int pageSize, string? search = null, string? provider = null, int? statutPaiement = null, string? sortByDateCreation = null, string? sortByDateConfirmation = null)
     {
         if (pageSize <= 0) pageSize = 12;
         if (pageSize > 50) pageSize = 50;
@@ -183,7 +183,22 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
              u.Prenom LIKE @Search OR 
              u.Email LIKE @Search OR 
              p.DeveloperTrackingId LIKE @Search OR 
-             p.ProviderPaymentId LIKE @Search)";
+             p.ProviderPaymentId LIKE @Search OR
+             p.IdPaiementAnnonceur = TRY_CAST(@RawSearch AS BIGINT))
+            AND (@Provider IS NULL OR p.Provider = @Provider)
+            AND (@StatutPaiement IS NULL OR p.StatutPaiement = @StatutPaiement)";
+
+        string orderByClause = "p.DateCreation DESC"; // Default
+        if (!string.IsNullOrWhiteSpace(sortByDateCreation))
+        {
+            string dir = sortByDateCreation.ToLower() == "asc" ? "ASC" : "DESC";
+            orderByClause = $"p.DateCreation {dir}";
+        }
+        else if (!string.IsNullOrWhiteSpace(sortByDateConfirmation))
+        {
+            string dir = sortByDateConfirmation.ToLower() == "asc" ? "ASC" : "DESC";
+            orderByClause = $"p.DateConfirmation {dir}";
+        }
 
         // Get total count
         var countSql = $@"
@@ -195,6 +210,9 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
         using (var countCmd = new SqlCommand(countSql, (SqlConnection)connection))
         {
             countCmd.Parameters.AddWithValue("@Search", (object?)searchLike ?? DBNull.Value);
+            countCmd.Parameters.AddWithValue("@RawSearch", (object?)search ?? DBNull.Value);
+            countCmd.Parameters.AddWithValue("@Provider", (object?)provider ?? DBNull.Value);
+            countCmd.Parameters.AddWithValue("@StatutPaiement", (object?)statutPaiement ?? DBNull.Value);
             totalItems = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
         }
 
@@ -207,12 +225,15 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
             FROM PaiementsAnnonceur p
             JOIN Utilisateurs u ON p.IdUtilisateur = u.IdUtilisateur
             WHERE {whereClause}
-            ORDER BY p.DateCreation DESC 
+            ORDER BY {orderByClause} 
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
         using (var command = new SqlCommand(sql, (SqlConnection)connection))
         {
             command.Parameters.AddWithValue("@Search", (object?)searchLike ?? DBNull.Value);
+            command.Parameters.AddWithValue("@RawSearch", (object?)search ?? DBNull.Value);
+            command.Parameters.AddWithValue("@Provider", (object?)provider ?? DBNull.Value);
+            command.Parameters.AddWithValue("@StatutPaiement", (object?)statutPaiement ?? DBNull.Value);
             command.Parameters.AddWithValue("@Offset", offset);
             command.Parameters.AddWithValue("@PageSize", pageSize);
 
@@ -363,7 +384,7 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
 
             // 3. Load linked DemandeAnnonceur
             var demandeCommand = new SqlCommand(@"
-                SELECT IdDemandeAnnonceur, IdUtilisateur, Statut 
+                SELECT IdDemandeAnnonceur, IdUtilisateur, Statut, IdAdminTraitant 
                 FROM DemandesAnnonceur 
                 WHERE IdDemandeAnnonceur = @IdDemandeAnnonceur", connection, transaction);
             demandeCommand.Parameters.AddWithValue("@IdDemandeAnnonceur", payment.DemandeAnnonceurId);
@@ -371,6 +392,7 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
             long demandeId = 0, demandeUserId = 0;
             int demandeStatus = 0;
             bool demandeExists = false;
+            long? existingAdminId = null;
 
             using (var reader = await demandeCommand.ExecuteReaderAsync())
             {
@@ -380,11 +402,17 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
                     demandeId = reader.GetInt64(0);
                     demandeUserId = reader.GetInt64(1);
                     demandeStatus = reader.GetInt32(2);
+                    existingAdminId = reader.IsDBNull(3) ? null : (long?)reader.GetInt64(3);
                 }
             }
 
             if (!demandeExists)
                 throw new NotFoundException("Advertiser request not found.");
+
+            if (adminId == 0)
+            {
+                adminId = existingAdminId ?? 1; // Fallback to seeded admin ID
+            }
 
             // 4. Validate ownership consistency
             if (payment.UserId != demandeUserId)

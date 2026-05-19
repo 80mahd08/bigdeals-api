@@ -3,12 +3,13 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using api.Interfaces.Checkout;
+using api.Dtos.Checkout;
 
 namespace api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "1,2")] // CLIENT and ANNONCEUR
+[Authorize(Roles = "CLIENT,ANNONCEUR")]
 public class CheckoutController : ControllerBase
 {
     private readonly ICheckoutService _checkoutService;
@@ -19,13 +20,13 @@ public class CheckoutController : ControllerBase
     }
 
     [HttpPost("create/{idAnnonce}")]
-    public async Task<IActionResult> CreateCheckout(long idAnnonce)
+    public async Task<IActionResult> CreateCheckout(long idAnnonce, [FromBody] CreateCheckoutRequestDto request)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userIdString) || !long.TryParse(userIdString, out var userId))
             return Unauthorized();
 
-        var result = await _checkoutService.CreateCheckoutAsync(idAnnonce, userId);
+        var result = await _checkoutService.CreateCheckoutAsync(idAnnonce, userId, request);
         return Ok(result);
     }
 

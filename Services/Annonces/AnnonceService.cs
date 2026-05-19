@@ -9,6 +9,7 @@ using api.Dtos.Annonces;
 using api.Exceptions;
 using api.Interfaces.Annonces;
 using api.Interfaces.Categories;
+using api.Interfaces.Signalements;
 using api.Interfaces.Users;
 using api.Models;
 using api.Models.Enums;
@@ -22,17 +23,20 @@ public class AnnonceService : IAnnonceService
     private readonly ICategoryRepository _categoryRepository;
     private readonly ILocalFileStorageService _storageService;
     private readonly IUserRepository _userRepository;
+    private readonly ISignalementRepository _signalementRepository;
 
     public AnnonceService(
         IAnnonceRepository annonceRepository, 
         ICategoryRepository categoryRepository,
         ILocalFileStorageService storageService,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        ISignalementRepository signalementRepository)
     {
         _annonceRepository = annonceRepository;
         _categoryRepository = categoryRepository;
         _storageService = storageService;
         _userRepository = userRepository;
+        _signalementRepository = signalementRepository;
     }
 
     public async Task<long> CreateAnnonceAsync(CreateAnnonceFormDto dto, long currentUserId)
@@ -159,6 +163,12 @@ public class AnnonceService : IAnnonceService
         var existing = await _annonceRepository.GetByIdAsync(id);
         if (existing == null) throw new NotFoundException("Annonce not found.");
         if (existing.IdUtilisateur != currentUserId) throw new ForbiddenException("You don't own this annonce.");
+
+        // Check if moderated
+        if (await _signalementRepository.HasAdBeenModeratedAsync(id))
+        {
+            throw new BadRequestException("Cette annonce a été suspendue par l'administration pour violation des règles. Vous ne pouvez pas la modifier tant qu'elle est sous modération.");
+        }
 
         // Validate Announcer Info
         var announcer = await _userRepository.GetByIdAsync(currentUserId);
@@ -376,14 +386,31 @@ public class AnnonceService : IAnnonceService
         return await MapToPagedDto(items, total, pageNumber, pageSize);
     }
 
-    public async Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize, string? search = null)
+    public async Task<PagedResponse<AnnonceDto>> GetAdminAnnoncesAsync(int pageNumber, int pageSize, string? search = null, int? idCategorie = null, StatutAnnonce? statut = null, string? ville = null, string? sortBy = null, string? sortDirection = null)
     {
-        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, null, null, null, search);
+        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, statut, null, null, search, idCategorie, ville, sortBy, sortDirection);
         return await MapToPagedDto(items, total, pageNumber, pageSize);
     }
 
+    public async Task<IReadOnlyList<string>> GetDistinctVillesAsync()
+    {
+        return await _annonceRepository.GetDistinctVillesAsync();
+    }
+
     public async Task<bool> SuspendAnnonceAsync(long id) => await _annonceRepository.UpdateStatutAsync(id, StatutAnnonce.SUSPENDUE);
-    public async Task<bool> RestoreAnnonceAsync(long id) => await _annonceRepository.UpdateStatutAsync(id, StatutAnnonce.PUBLIEE);
+    
+    public async Task<bool> RestoreAnnonceAsync(long id, bool isAdminCall = false)
+    {
+        if (!isAdminCall)
+        {
+            var isModerated = await _signalementRepository.HasAdBeenModeratedAsync(id);
+            if (isModerated)
+            {
+                throw new BadRequestException("Cette annonce a été suspendue par l'administration suite à des signalements. Vous ne pouvez pas la rétablir vous-même. Veuillez contacter le support.");
+            }
+        }
+        return await _annonceRepository.UpdateStatutAsync(id, StatutAnnonce.PUBLIEE);
+    }
 
     public async Task<PagedResponse<AnnonceDto>> SearchAnnoncesAsync(AnnonceSearchRequestDto request)
     {
@@ -582,5 +609,19 @@ public class AnnonceService : IAnnonceService
             });
         }
         return new PagedResponse<AnnonceDto>(dtos, total, page, size);
+    }
+    public async Task<bool> DeleteAdminAnnonceAsync(long id)
+    {
+        var existing = await _annonceRepository.GetByIdAsync(id);
+        if (existing == null) throw new NotFoundException("Annonce not found.");
+
+        // Delete files from disk
+        var images = await _annonceRepository.GetImagesByAnnonceIdAsync(id);
+        foreach (var img in images)
+        {
+            await _storageService.DeleteFileAsync(img.Url);
+        }
+
+        return await _annonceRepository.DeleteAsync(id);
     }
 }

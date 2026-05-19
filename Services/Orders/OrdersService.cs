@@ -7,6 +7,8 @@ using api.Interfaces.Annonces;
 using api.Interfaces.Orders;
 using api.Models;
 using api.Models.Enums;
+using Microsoft.Extensions.Options;
+using api.Models.Config;
 
 namespace api.Services.Orders;
 
@@ -14,20 +16,22 @@ public class OrdersService : IOrdersService
 {
     private readonly IOrdersRepository _ordersRepository;
     private readonly IAnnonceRepository _annonceRepository;
+    private readonly BigDealsBusinessSettings _settings;
 
     // Valid delivery state transitions
     private static readonly Dictionary<StatutLivraison, StatutLivraison[]> _validTransitions = new()
     {
         { StatutLivraison.EN_ATTENTE_PREPARATION, new[] { StatutLivraison.EN_PREPARATION, StatutLivraison.ANNULEE } },
-        { StatutLivraison.EN_PREPARATION, new[] { StatutLivraison.EXPEDIEE, StatutLivraison.ANNULEE } },
-        { StatutLivraison.EXPEDIEE, new[] { StatutLivraison.LIVREE, StatutLivraison.ECHEC_LIVRAISON } },
-        { StatutLivraison.ECHEC_LIVRAISON, new[] { StatutLivraison.RETOURNEE, StatutLivraison.EXPEDIEE } },
+        { StatutLivraison.EN_PREPARATION, new[] { StatutLivraison.EXPEDIEE } },
+        { StatutLivraison.EXPEDIEE, Array.Empty<StatutLivraison>() },
+        { StatutLivraison.ANNULEE, Array.Empty<StatutLivraison>() },
     };
 
-    public OrdersService(IOrdersRepository ordersRepository, IAnnonceRepository annonceRepository)
+    public OrdersService(IOrdersRepository ordersRepository, IAnnonceRepository annonceRepository, IOptions<BigDealsBusinessSettings> settings)
     {
         _ordersRepository = ordersRepository;
         _annonceRepository = annonceRepository;
+        _settings = settings.Value;
     }
 
     public async Task<ApiResponse<IEnumerable<Commande>>> GetUserOrdersAsync(long userId)
@@ -72,13 +76,22 @@ public class OrdersService : IOrdersService
             var annonce = await _annonceRepository.GetByIdAsync(line.IdAnnonce);
             if (annonce == null) continue;
 
+            if (annonce.IdUtilisateur == userId)
+                return ApiResponse<Commande>.Fail("Vous ne pouvez pas acheter votre propre annonce.");
+
+            var montantAnnonce = annonce.Prix * line.Quantite;
+            var fraisLivraison = _settings.FraisLivraisonFixe;
+            var montantTotal = montantAnnonce + fraisLivraison;
+
             var order = new Commande
             {
                 IdAnnonce = line.IdAnnonce,
                 IdAcheteur = userId,
                 IdAnnonceur = annonce.IdUtilisateur,
-                Montant = annonce.Prix * line.Quantite,
-                StatutCommande = StatutCommande.PAYEE, // Assuming immediate validation for mock
+                MontantAnnonce = montantAnnonce,
+                FraisLivraison = fraisLivraison,
+                Montant = montantTotal,
+                StatutCommande = StatutCommande.EN_ATTENTE_PAIEMENT,
                 StatutLivraison = StatutLivraison.EN_ATTENTE_PREPARATION,
                 AdresseLivraison = request.AdresseLivraison,
                 VilleLivraison = request.VilleLivraison,
@@ -121,10 +134,32 @@ public class OrdersService : IOrdersService
 
         // Cannot update delivery if order is not paid
         if (order.StatutCommande != StatutCommande.PAYEE)
-            return ApiResponse<bool>.Fail("La commande doit être payée avant de mettre à jour la livraison.");
+            return ApiResponse<bool>.Fail("La livraison ne peut pas être modifiée avant le paiement de la commande.");
 
         var currentStatus = order.StatutLivraison;
 
+        // Specific rules for cancellation (StatutLivraison.ANNULEE)
+        if (newStatus == StatutLivraison.ANNULEE)
+        {
+            if (currentStatus == StatutLivraison.ANNULEE)
+                return ApiResponse<bool>.Fail("Cette commande est déjà annulée.");
+                
+            if (currentStatus == StatutLivraison.EN_PREPARATION)
+                return ApiResponse<bool>.Fail("Impossible d’annuler cette commande car sa préparation a déjà commencé.");
+                
+            if (currentStatus == StatutLivraison.EXPEDIEE)
+                return ApiResponse<bool>.Fail("Impossible d’annuler cette commande car elle a déjà été remise au livreur.");
+                
+            if (currentStatus != StatutLivraison.EN_ATTENTE_PREPARATION)
+                return ApiResponse<bool>.Fail("L'annulation n'est plus possible à ce stade de la livraison.");
+
+            // Perform atomic cancellation and mock refund
+            var cancelSuccess = await _ordersRepository.CancelOrderAndRefundAsync(orderId);
+            if (!cancelSuccess)
+                return ApiResponse<bool>.Fail("Échec de l'annulation de la commande.");
+
+            return ApiResponse<bool>.Ok(true, "Commande annulée et paiement remboursé avec succès.");
+        }
 
         // Validate transition
         if (!_validTransitions.ContainsKey(currentStatus) || !_validTransitions[currentStatus].Contains(newStatus))
@@ -135,20 +170,23 @@ public class OrdersService : IOrdersService
 
         // Set dates based on status
         DateTime? dateExpedition = null;
-        DateTime? dateLivraison = null;
 
         if (newStatus == StatutLivraison.EXPEDIEE)
             dateExpedition = DateTime.UtcNow;
-        else if (newStatus == StatutLivraison.LIVREE)
-            dateLivraison = DateTime.UtcNow;
 
         var success = await _ordersRepository.UpdateDeliveryStatusAsync(
-            orderId, (int)newStatus, null, dateExpedition, dateLivraison);
+            orderId, (int)newStatus, null, dateExpedition, null);
 
         if (!success)
             return ApiResponse<bool>.Fail("Échec de la mise à jour.");
 
         return ApiResponse<bool>.Ok(true, $"Livraison mise à jour : {GetFrenchLabel(newStatus)}.");
+    }
+
+    public async Task<ApiResponse<bool>> AnnouncerCancelOrderAsync(long orderId, long announcerId)
+    {
+        var request = new UpdateDeliveryStatusRequest { StatutLivraison = (int)StatutLivraison.ANNULEE };
+        return await UpdateDeliveryStatusAsync(orderId, announcerId, request, isAdmin: false);
     }
 
     private static string GetFrenchLabel(StatutLivraison status) => status switch

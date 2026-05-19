@@ -18,10 +18,10 @@ public class AdminUserService : IAdminUserService
         _annonceRepository = annonceRepository;
     }
 
-    public async Task<PagedResponse<AdminUserListItemDto>> GetUsersAsync(int pageNumber, int pageSize, string? search, int? statutCompte, int? role, string? ville)
+    public async Task<PagedResponse<AdminUserListItemDto>> GetUsersAsync(int pageNumber, int pageSize, string? search, int? statutCompte, int? role, string? ville, string? sortByDateInscription = null, string? sortByNbAnnonces = null)
     {
         if (pageSize > 50) pageSize = 50;
-        return await _userRepository.GetPagedUsersAsync(pageNumber, pageSize, search, statutCompte, role, ville);
+        return await _userRepository.GetPagedUsersAsync(pageNumber, pageSize, search, statutCompte, role, ville, sortByDateInscription, sortByNbAnnonces);
     }
 
     public async Task<bool> BlockUserAsync(long idUtilisateur)

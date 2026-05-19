@@ -36,4 +36,5 @@ public interface IOrdersService
     Task<ApiResponse<IEnumerable<dynamic>>> GetAllOrdersAsync();
     Task<ApiResponse<Commande>> CheckoutAsync(long userId, CreateOrderRequest request);
     Task<ApiResponse<bool>> UpdateDeliveryStatusAsync(long orderId, long actorUserId, UpdateDeliveryStatusRequest request, bool isAdmin);
+    Task<ApiResponse<bool>> AnnouncerCancelOrderAsync(long orderId, long announcerId);
 }

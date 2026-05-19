@@ -13,7 +13,7 @@ public interface IAnnonceurPaymentService
 
     Task<IReadOnlyList<AnnonceurPaymentDto>> GetMyPaymentsAsync(long currentUserId);
 
-    Task<PagedResponse<AnnonceurPaymentDto>> GetAdminPagedAsync(int pageNumber, int pageSize, string? search = null);
+    Task<PagedResponse<AnnonceurPaymentDto>> GetAdminPagedAsync(int pageNumber, int pageSize, string? search = null, string? provider = null, int? statutPaiement = null, string? sortByDateCreation = null, string? sortByDateConfirmation = null);
 
     Task<AnnonceurPaymentDto> MarkMockPaymentAsPaidAsync(long annonceurPaymentId, long adminId);
 }

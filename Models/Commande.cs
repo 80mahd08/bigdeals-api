@@ -21,8 +21,17 @@ public class Commande
     [JsonPropertyName("idAnnonceur")]
     public long IdAnnonceur { get; set; }
 
+    [JsonPropertyName("montantAnnonce")]
+    public decimal MontantAnnonce { get; set; }
+
+    [JsonPropertyName("fraisLivraison")]
+    public decimal FraisLivraison { get; set; }
+
     [JsonPropertyName("montant")]
     public decimal Montant { get; set; }
+
+    [JsonIgnore]
+    public decimal RevenuAnnonceurNet => Montant - FraisLivraison;
 
     [JsonPropertyName("statutCommande")]
     public StatutCommande StatutCommande { get; set; }

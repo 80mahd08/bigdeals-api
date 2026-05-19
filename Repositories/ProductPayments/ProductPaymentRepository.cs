@@ -51,4 +51,44 @@ public class ProductPaymentRepository : IProductPaymentRepository
         if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
         await cmd.ExecuteNonQueryAsync();
     }
+
+    public async Task<PaiementCommande?> GetPaymentByOrderIdAsync(long orderId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = "SELECT * FROM PaiementsCommandes WHERE IdCommande = @IdCommande";
+
+        using var cmd = new SqlCommand(sql, (SqlConnection)connection);
+        cmd.Parameters.AddWithValue("@IdCommande", orderId);
+
+        if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new PaiementCommande
+            {
+                IdPaiementCommande = Convert.ToInt64(reader["IdPaiementCommande"]),
+                IdCommande = Convert.ToInt64(reader["IdCommande"]),
+                Montant = Convert.ToDecimal(reader["Montant"]),
+                MethodePaiement = reader["MethodePaiement"].ToString() ?? "",
+                StatutPaiement = (StatutPaiementCommande)Convert.ToInt32(reader["StatutPaiement"]),
+                NumeroCarteMasque = reader["NumeroCarteMasque"] == DBNull.Value ? null : reader["NumeroCarteMasque"].ToString(),
+                DatePaiement = Convert.ToDateTime(reader["DatePaiement"])
+            };
+        }
+        return null;
+    }
+
+    public async Task<bool> UpdatePaymentStatusAsync(long paymentId, StatutPaiementCommande status)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = "UPDATE PaiementsCommandes SET StatutPaiement = @Status WHERE IdPaiementCommande = @IdPaiementCommande";
+
+        using var cmd = new SqlCommand(sql, (SqlConnection)connection);
+        cmd.Parameters.AddWithValue("@Status", (int)status);
+        cmd.Parameters.AddWithValue("@IdPaiementCommande", paymentId);
+
+        if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
+        var rows = await cmd.ExecuteNonQueryAsync();
+        return rows > 0;
+    }
 }

@@ -22,7 +22,7 @@ public interface IAnnonceurPaymentRepository
 
     Task<IReadOnlyList<AnnonceurPaymentDto>> GetByUserIdAsync(long userId);
 
-    Task<PagedResponse<AnnonceurPaymentDto>> GetAdminPagedAsync(int pageNumber, int pageSize, string? search = null);
+    Task<PagedResponse<AnnonceurPaymentDto>> GetAdminPagedAsync(int pageNumber, int pageSize, string? search = null, string? provider = null, int? statutPaiement = null, string? sortByDateCreation = null, string? sortByDateConfirmation = null);
 
     Task UpdateProviderInfoAsync(
         long annonceurPaymentId,

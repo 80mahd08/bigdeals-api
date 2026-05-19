@@ -55,9 +55,13 @@ public class AnnonceurPaymentsController : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceurPaymentDto>>>> GetAdminPaged(
         [FromQuery] int pageNumber = 1, 
         [FromQuery] int pageSize = 12,
-        [FromQuery] string? search = null)
+        [FromQuery] string? search = null,
+        [FromQuery] string? provider = null,
+        [FromQuery] int? statutPaiement = null,
+        [FromQuery] string? sortByDateCreation = null,
+        [FromQuery] string? sortByDateConfirmation = null)
     {
-        var result = await _paymentService.GetAdminPagedAsync(pageNumber, pageSize, search);
+        var result = await _paymentService.GetAdminPagedAsync(pageNumber, pageSize, search, provider, statutPaiement, sortByDateCreation, sortByDateConfirmation);
         return Ok(ApiResponse<PagedResponse<AnnonceurPaymentDto>>.Ok(result));
     }
 
@@ -68,5 +72,13 @@ public class AnnonceurPaymentsController : ControllerBase
         var adminId = _currentUserService.GetUserId();
         var result = await _paymentService.MarkMockPaymentAsPaidAsync(id, adminId);
         return Ok(ApiResponse<AnnonceurPaymentDto>.Ok(result, "Mock payment marked as paid. User is now an advertiser."));
+    }
+
+    [HttpPost("{id}/mock-pay-client")]
+    [Authorize(Roles = "CLIENT,ANNONCEUR")]
+    public async Task<ActionResult<ApiResponse<AnnonceurPaymentDto>>> ClientMockPay(long id)
+    {
+        var result = await _paymentService.MarkMockPaymentAsPaidAsync(id, 0);
+        return Ok(ApiResponse<AnnonceurPaymentDto>.Ok(result, "Payment successful. You are now an announcer!"));
     }
 }

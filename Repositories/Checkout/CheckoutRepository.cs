@@ -22,16 +22,22 @@ public class CheckoutRepository : ICheckoutRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         const string sql = @"
-            INSERT INTO Commandes (IdAnnonce, IdAcheteur, IdAnnonceur, Montant, StatutCommande, DateCreation)
-            VALUES (@IdAnnonce, @IdAcheteur, @IdAnnonceur, @Montant, @StatutCommande, @DateCreation);
+            INSERT INTO Commandes (IdAnnonce, IdAcheteur, IdAnnonceur, MontantAnnonce, FraisLivraison, Montant, StatutCommande, StatutLivraison, AdresseLivraison, VilleLivraison, TelephoneLivraison, DateCreation)
+            VALUES (@IdAnnonce, @IdAcheteur, @IdAnnonceur, @MontantAnnonce, @FraisLivraison, @Montant, @StatutCommande, @StatutLivraison, @AdresseLivraison, @VilleLivraison, @TelephoneLivraison, @DateCreation);
             SELECT CAST(SCOPE_IDENTITY() as BIGINT);";
 
         using var cmd = new SqlCommand(sql, (SqlConnection)connection);
         cmd.Parameters.AddWithValue("@IdAnnonce", commande.IdAnnonce);
         cmd.Parameters.AddWithValue("@IdAcheteur", commande.IdAcheteur);
         cmd.Parameters.AddWithValue("@IdAnnonceur", commande.IdAnnonceur);
+        cmd.Parameters.AddWithValue("@MontantAnnonce", commande.MontantAnnonce);
+        cmd.Parameters.AddWithValue("@FraisLivraison", commande.FraisLivraison);
         cmd.Parameters.AddWithValue("@Montant", commande.Montant);
         cmd.Parameters.AddWithValue("@StatutCommande", (int)commande.StatutCommande);
+        cmd.Parameters.AddWithValue("@StatutLivraison", (int)commande.StatutLivraison);
+        cmd.Parameters.AddWithValue("@AdresseLivraison", (object?)commande.AdresseLivraison ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@VilleLivraison", (object?)commande.VilleLivraison ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@TelephoneLivraison", (object?)commande.TelephoneLivraison ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@DateCreation", commande.DateCreation);
 
         if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
@@ -57,9 +63,18 @@ public class CheckoutRepository : ICheckoutRepository
                 IdAnnonce = (long)reader["IdAnnonce"],
                 IdAcheteur = (long)reader["IdAcheteur"],
                 IdAnnonceur = (long)reader["IdAnnonceur"],
+                MontantAnnonce = reader["MontantAnnonce"] != DBNull.Value ? (decimal)reader["MontantAnnonce"] : 0,
+                FraisLivraison = reader["FraisLivraison"] != DBNull.Value ? (decimal)reader["FraisLivraison"] : 0,
                 Montant = (decimal)reader["Montant"],
                 StatutCommande = (StatutCommande)(int)reader["StatutCommande"],
-                DateCreation = (DateTime)reader["DateCreation"]
+                StatutLivraison = (StatutLivraison)(int)reader["StatutLivraison"],
+                AdresseLivraison = reader["AdresseLivraison"]?.ToString(),
+                VilleLivraison = reader["VilleLivraison"]?.ToString(),
+                TelephoneLivraison = reader["TelephoneLivraison"]?.ToString(),
+                DateCreation = (DateTime)reader["DateCreation"],
+                DateExpedition = reader["DateExpedition"] != DBNull.Value ? (DateTime)reader["DateExpedition"] : null,
+                DateLivraison = reader["DateLivraison"] != DBNull.Value ? (DateTime)reader["DateLivraison"] : null,
+                DateDerniereMiseAJourLivraison = reader["DateDerniereMiseAJourLivraison"] != DBNull.Value ? (DateTime)reader["DateDerniereMiseAJourLivraison"] : null
             };
         }
         return null;
@@ -84,8 +99,14 @@ public class CheckoutRepository : ICheckoutRepository
                 IdAnnonce = (long)reader["IdAnnonce"],
                 IdAcheteur = (long)reader["IdAcheteur"],
                 IdAnnonceur = (long)reader["IdAnnonceur"],
+                MontantAnnonce = reader["MontantAnnonce"] != DBNull.Value ? (decimal)reader["MontantAnnonce"] : 0,
+                FraisLivraison = reader["FraisLivraison"] != DBNull.Value ? (decimal)reader["FraisLivraison"] : 0,
                 Montant = (decimal)reader["Montant"],
                 StatutCommande = (StatutCommande)(int)reader["StatutCommande"],
+                StatutLivraison = (StatutLivraison)(int)reader["StatutLivraison"],
+                AdresseLivraison = reader["AdresseLivraison"]?.ToString(),
+                VilleLivraison = reader["VilleLivraison"]?.ToString(),
+                TelephoneLivraison = reader["TelephoneLivraison"]?.ToString(),
                 DateCreation = (DateTime)reader["DateCreation"]
             };
         }

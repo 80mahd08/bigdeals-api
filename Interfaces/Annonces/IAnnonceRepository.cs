@@ -12,7 +12,8 @@ public interface IAnnonceRepository
     Task<bool> UpdateAsync(Annonce annonce, List<ValeurAttributAnnonce> valeurs);
     Task<bool> DeleteAsync(long id);
     Task<Annonce?> GetByIdAsync(long id);
-    Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null, string? keyword = null);
+    Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null, string? keyword = null, int? idCategorie = null, string? ville = null, string? sortBy = null, string? sortDirection = null);
+    Task<IReadOnlyList<string>> GetDistinctVillesAsync();
     Task<(IReadOnlyList<Annonce> Items, int TotalCount)> SearchAsync(AnnonceSearchRequestDto request);
     Task<IReadOnlyList<ValeurAttributAnnonce>> GetValeursByAnnonceIdAsync(long idAnnonce);
     Task<IReadOnlyList<ImageAnnonce>> GetImagesByAnnonceIdAsync(long idAnnonce);

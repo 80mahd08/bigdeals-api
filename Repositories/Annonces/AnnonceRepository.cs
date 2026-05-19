@@ -148,31 +148,71 @@ public class AnnonceRepository : IAnnonceRepository
 
         try
         {
-            // 1. Delete favoris (if any)
+            // 1. Delete favoris
             const string sqlFavoris = "DELETE FROM Favoris WHERE IdAnnonce = @Id";
             using var cmdFavoris = new SqlCommand(sqlFavoris, connection, transaction);
             cmdFavoris.Parameters.AddWithValue("@Id", id);
             await cmdFavoris.ExecuteNonQueryAsync();
 
-            // 2. Delete advertiser contacts (if any)
-            const string sqlContacts = "DELETE FROM ContactsAnnonceur WHERE IdAnnonce = @Id";
+            // 2. Delete advertiser contacts
+            const string sqlContacts = @"
+                IF OBJECT_ID('dbo.ContactsAnnonceur', 'U') IS NOT NULL
+                BEGIN
+                    DELETE FROM ContactsAnnonceur WHERE IdAnnonce = @Id
+                END";
             using var cmdContacts = new SqlCommand(sqlContacts, connection, transaction);
             cmdContacts.Parameters.AddWithValue("@Id", id);
             await cmdContacts.ExecuteNonQueryAsync();
 
-            // 3. Delete attribute values
+            // 3. Delete signalements
+            const string sqlSignalements = @"
+                IF OBJECT_ID('dbo.Signalements', 'U') IS NOT NULL
+                BEGIN
+                    DELETE FROM Signalements WHERE IdAnnonce = @Id
+                END";
+            using var cmdSignalements = new SqlCommand(sqlSignalements, connection, transaction);
+            cmdSignalements.Parameters.AddWithValue("@Id", id);
+            await cmdSignalements.ExecuteNonQueryAsync();
+
+            // 4. Delete avis (reviews)
+            const string sqlAvis = @"
+                IF OBJECT_ID('dbo.Avis', 'U') IS NOT NULL
+                BEGIN
+                    DELETE FROM Avis WHERE IdAnnonce = @Id
+                END";
+            using var cmdAvis = new SqlCommand(sqlAvis, connection, transaction);
+            cmdAvis.Parameters.AddWithValue("@Id", id);
+            await cmdAvis.ExecuteNonQueryAsync();
+
+            // 5. Delete payments and orders
+            const string sqlOrders = @"
+                IF OBJECT_ID('dbo.Commandes', 'U') IS NOT NULL
+                BEGIN
+                    -- Delete associated payments first
+                    IF OBJECT_ID('dbo.PaiementsCommandes', 'U') IS NOT NULL
+                    BEGIN
+                        DELETE FROM PaiementsCommandes WHERE IdCommande IN (SELECT IdCommande FROM Commandes WHERE IdAnnonce = @Id)
+                    END
+                    
+                    DELETE FROM Commandes WHERE IdAnnonce = @Id
+                END";
+            using var cmdOrders = new SqlCommand(sqlOrders, connection, transaction);
+            cmdOrders.Parameters.AddWithValue("@Id", id);
+            await cmdOrders.ExecuteNonQueryAsync();
+
+            // 6. Delete attribute values
             const string sqlVals = "DELETE FROM ValeursAttributAnnonce WHERE IdAnnonce = @Id";
             using var cmdVals = new SqlCommand(sqlVals, connection, transaction);
             cmdVals.Parameters.AddWithValue("@Id", id);
             await cmdVals.ExecuteNonQueryAsync();
 
-            // 2. Delete images
+            // 7. Delete images
             const string sqlImgs = "DELETE FROM ImagesAnnonce WHERE IdAnnonce = @Id";
             using var cmdImgs = new SqlCommand(sqlImgs, connection, transaction);
             cmdImgs.Parameters.AddWithValue("@Id", id);
             await cmdImgs.ExecuteNonQueryAsync();
 
-            // 3. Delete the annonce
+            // 8. Finally delete the annonce
             const string sqlAnnonce = "DELETE FROM Annonces WHERE IdAnnonce = @Id";
             using var cmdAnnonce = new SqlCommand(sqlAnnonce, connection, transaction);
             cmdAnnonce.Parameters.AddWithValue("@Id", id);
@@ -403,7 +443,7 @@ public class AnnonceRepository : IAnnonceRepository
         return (items, totalCount);
     }
 
-    public async Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null, string? keyword = null)
+    public async Task<(IReadOnlyList<Annonce> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, StatutAnnonce? statut = null, bool? estActif = null, long? idUtilisateur = null, string? keyword = null, int? idCategorie = null, string? ville = null, string? sortBy = null, string? sortDirection = null)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -436,15 +476,42 @@ public class AnnonceRepository : IAnnonceRepository
         }
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            whereClauses.Add(@"(a.Titre LIKE @Keyword 
-                               OR a.Titre LIKE @KeywordWord 
-                               OR a.Description LIKE @Keyword 
-                               OR a.Description LIKE @KeywordWord
-                               OR ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') LIKE @KeywordAny
-                               OR ISNULL(u.Nom, '') + ' ' + ISNULL(u.Prenom, '') LIKE @KeywordAny)");
+            var isNumeric = long.TryParse(keyword, out long adId);
+            if (isNumeric)
+            {
+                whereClauses.Add(@"(a.IdAnnonce = @AdId 
+                                   OR a.Titre LIKE @Keyword 
+                                   OR a.Titre LIKE @KeywordWord 
+                                   OR a.Description LIKE @Keyword 
+                                   OR a.Description LIKE @KeywordWord
+                                   OR ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') LIKE @KeywordAny
+                                   OR ISNULL(u.Nom, '') + ' ' + ISNULL(u.Prenom, '') LIKE @KeywordAny)");
+                parameters.Add(new SqlParameter("@AdId", adId));
+            }
+            else
+            {
+                whereClauses.Add(@"(a.Titre LIKE @Keyword 
+                                   OR a.Titre LIKE @KeywordWord 
+                                   OR a.Description LIKE @Keyword 
+                                   OR a.Description LIKE @KeywordWord
+                                   OR ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') LIKE @KeywordAny
+                                   OR ISNULL(u.Nom, '') + ' ' + ISNULL(u.Prenom, '') LIKE @KeywordAny)");
+            }
             parameters.Add(new SqlParameter("@Keyword", $"{keyword}%"));
             parameters.Add(new SqlParameter("@KeywordWord", $"% {keyword}%"));
             parameters.Add(new SqlParameter("@KeywordAny", $"%{keyword}%"));
+        }
+
+        if (idCategorie.HasValue)
+        {
+            whereClauses.Add("a.IdCategorie = @IdCategorie");
+            parameters.Add(new SqlParameter("@IdCategorie", idCategorie.Value));
+        }
+
+        if (!string.IsNullOrWhiteSpace(ville))
+        {
+            whereClauses.Add("a.Localisation = @Ville");
+            parameters.Add(new SqlParameter("@Ville", ville));
         }
 
         string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
@@ -456,6 +523,14 @@ public class AnnonceRepository : IAnnonceRepository
         foreach (var p in parameters) countCmd.Parameters.Add(new SqlParameter(p.ParameterName, p.Value));
         var totalCountObj = await countCmd.ExecuteScalarAsync();
         int totalCount = totalCountObj != null ? Convert.ToInt32(totalCountObj) : 0;
+
+        string orderCol = sortBy?.ToLower() switch
+        {
+            "prix" => "a.Prix",
+            "date" => "a.DateCreation",
+            _ => "a.DateCreation"
+        };
+        string orderDir = sortDirection?.ToLower() == "asc" ? "ASC" : "DESC";
 
         string itemsSql = $@"
             SELECT 
@@ -476,7 +551,7 @@ public class AnnonceRepository : IAnnonceRepository
                 ORDER BY EstPrincipale DESC, OrdreAffichage ASC
             ) img
             {whereSql}
-            ORDER BY a.DateCreation DESC
+            ORDER BY {orderCol} {orderDir}
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
         using var itemsCmd = new SqlCommand(itemsSql, connection);
@@ -617,6 +692,27 @@ public class AnnonceRepository : IAnnonceRepository
         
         await connection.OpenAsync();
         return await command.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<IReadOnlyList<string>> GetDistinctVillesAsync()
+    {
+        using var connection = (SqlConnection)_connectionFactory.CreateConnection();
+        const string sql = @"
+            SELECT DISTINCT Localisation 
+            FROM Annonces 
+            WHERE Localisation IS NOT NULL 
+              AND Localisation <> '' 
+            ORDER BY Localisation";
+        using var command = new SqlCommand(sql, connection);
+        
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        var villes = new List<string>();
+        while (await reader.ReadAsync())
+        {
+            villes.Add((string)reader["Localisation"]);
+        }
+        return villes;
     }
 
     private static Annonce MapToAnnonce(SqlDataReader reader)

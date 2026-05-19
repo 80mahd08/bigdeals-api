@@ -19,7 +19,7 @@ public class AdminUserRepository : IAdminUserRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<PagedResponse<AdminUserListItemDto>> GetPagedUsersAsync(int pageNumber, int pageSize, string? search, int? statutCompte, int? role, string? ville)
+    public async Task<PagedResponse<AdminUserListItemDto>> GetPagedUsersAsync(int pageNumber, int pageSize, string? search, int? statutCompte, int? role, string? ville, string? sortByDateInscription = null, string? sortByNbAnnonces = null)
     {
         using var connection = _connectionFactory.CreateConnection();
         await ((SqlConnection)connection).OpenAsync();
@@ -38,6 +38,18 @@ public class AdminUserRepository : IAdminUserRepository
             AND (@StatutCompte IS NULL OR u.StatutCompte = @StatutCompte)
             AND (@Role IS NULL OR u.Role = @Role)
             AND (@Ville IS NULL OR u.Ville = @Ville)";
+
+        string orderByClause = "u.DateCreation DESC"; // Default
+        if (!string.IsNullOrWhiteSpace(sortByDateInscription))
+        {
+            string dir = sortByDateInscription.ToLower() == "asc" ? "ASC" : "DESC";
+            orderByClause = $"u.DateCreation {dir}";
+        }
+        else if (!string.IsNullOrWhiteSpace(sortByNbAnnonces))
+        {
+            string dir = sortByNbAnnonces.ToLower() == "asc" ? "ASC" : "DESC";
+            orderByClause = $"COUNT(a.IdAnnonce) {dir}";
+        }
 
         var countSql = $"SELECT COUNT(*) FROM dbo.Utilisateurs u WHERE {whereClause}";
         var dataSql = $@"
@@ -58,7 +70,7 @@ public class AdminUserRepository : IAdminUserRepository
             WHERE {whereClause}
             GROUP BY
                 u.IdUtilisateur, u.Nom, u.Prenom, u.Email, u.Telephone, u.Ville, u.Role, u.StatutCompte, u.DateCreation, u.PhotoProfilUrl
-            ORDER BY u.DateCreation DESC
+            ORDER BY {orderByClause}
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
         using var countCmd = new SqlCommand(countSql, (SqlConnection)connection);

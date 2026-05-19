@@ -150,6 +150,39 @@ public class AuthService : IAuthService
         };
     }
 
+    public async Task<AuthResponseDto> SyncSessionAsync(long userId)
+    {
+        var user = await _repository.GetByIdAsync(userId);
+        if (user == null)
+            throw new NotFoundException("User not found.");
+
+        if (user.StatutCompte == StatutCompte.BLOQUE)
+            throw new ForbiddenException("Votre compte est bloqué.");
+
+        var token = _tokenGenerator.GenerateToken(user.IdUtilisateur, user.Email, user.Role.ToString());
+
+        return new AuthResponseDto
+        {
+            Token = token,
+            RefreshToken = string.Empty,
+            User = new UserProfileDto
+            {
+                IdUtilisateur = user.IdUtilisateur,
+                Nom = user.Nom,
+                Prenom = user.Prenom,
+                Email = user.Email,
+                Telephone = user.Telephone,
+                Role = user.Role.ToString(),
+                StatutCompte = user.StatutCompte.ToString(),
+                StatutLabel = user.StatutCompte == StatutCompte.ACTIF ? "Actif" : "Bloqué",
+                DateCreation = user.DateCreation,
+                PhotoProfilUrl = user.PhotoProfilUrl,
+                Adresse = user.Adresse,
+                Ville = user.Ville
+            }
+        };
+    }
+
     public async Task ForgotPasswordAsync(ForgotPasswordRequestDto request)
     {
         var user = await _repository.GetUserByEmailAsync(request.Email);

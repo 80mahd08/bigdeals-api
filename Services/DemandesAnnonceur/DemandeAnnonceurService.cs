@@ -73,9 +73,9 @@ public class DemandeAnnonceurService : IDemandeAnnonceurService
         return requests.Select(MapToDto).ToList();
     }
 
-    public async Task<(IReadOnlyList<DemandeAnnonceurDto> Items, int TotalCount)> GetAllRequestsPagedAsync(int pageNumber, int pageSize, int? statut, string? search)
+    public async Task<(IReadOnlyList<DemandeAnnonceurDto> Items, int TotalCount)> GetAllRequestsPagedAsync(int pageNumber, int pageSize, int? statut, string? search, string? sortByDateDemande = null, string? sortByDateTraitement = null)
     {
-        var requests = await _repository.GetAllPagedAsync(pageNumber, pageSize, statut, search);
+        var requests = await _repository.GetAllPagedAsync(pageNumber, pageSize, statut, search, sortByDateDemande, sortByDateTraitement);
         var totalCount = await _repository.GetCountAsync(statut, search);
         
         return (requests.Select(MapToDto).ToList(), totalCount);
