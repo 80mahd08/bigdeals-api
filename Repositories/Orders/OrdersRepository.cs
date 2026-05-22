@@ -287,4 +287,19 @@ public class OrdersRepository : IOrdersRepository
             return false;
         }
     }
+
+    public async Task<bool> HasPurchasedProductAsync(long userId, long annonceId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        const string sql = @"
+            SELECT COUNT(1) 
+            FROM Commandes 
+            WHERE IdAcheteur = @IdAcheteur AND IdAnnonce = @IdAnnonce AND StatutCommande = 2 AND StatutLivraison >= 3";
+        using var cmd = new SqlCommand(sql, (SqlConnection)connection);
+        cmd.Parameters.AddWithValue("@IdAcheteur", userId);
+        cmd.Parameters.AddWithValue("@IdAnnonce", annonceId);
+        if (connection.State != ConnectionState.Open) await ((SqlConnection)connection).OpenAsync();
+        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        return count > 0;
+    }
 }

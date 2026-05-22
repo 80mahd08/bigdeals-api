@@ -476,27 +476,12 @@ public class AnnonceRepository : IAnnonceRepository
         }
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            var isNumeric = long.TryParse(keyword, out long adId);
-            if (isNumeric)
-            {
-                whereClauses.Add(@"(a.IdAnnonce = @AdId 
-                                   OR a.Titre LIKE @Keyword 
-                                   OR a.Titre LIKE @KeywordWord 
-                                   OR a.Description LIKE @Keyword 
-                                   OR a.Description LIKE @KeywordWord
-                                   OR ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') LIKE @KeywordAny
-                                   OR ISNULL(u.Nom, '') + ' ' + ISNULL(u.Prenom, '') LIKE @KeywordAny)");
-                parameters.Add(new SqlParameter("@AdId", adId));
-            }
-            else
-            {
-                whereClauses.Add(@"(a.Titre LIKE @Keyword 
-                                   OR a.Titre LIKE @KeywordWord 
-                                   OR a.Description LIKE @Keyword 
-                                   OR a.Description LIKE @KeywordWord
-                                   OR ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') LIKE @KeywordAny
-                                   OR ISNULL(u.Nom, '') + ' ' + ISNULL(u.Prenom, '') LIKE @KeywordAny)");
-            }
+            whereClauses.Add(@"(a.Titre LIKE @Keyword 
+                               OR a.Titre LIKE @KeywordWord 
+                               OR a.Description LIKE @Keyword 
+                               OR a.Description LIKE @KeywordWord
+                               OR ISNULL(u.Prenom, '') + ' ' + ISNULL(u.Nom, '') LIKE @KeywordAny
+                               OR ISNULL(u.Nom, '') + ' ' + ISNULL(u.Prenom, '') LIKE @KeywordAny)");
             parameters.Add(new SqlParameter("@Keyword", $"{keyword}%"));
             parameters.Add(new SqlParameter("@KeywordWord", $"% {keyword}%"));
             parameters.Add(new SqlParameter("@KeywordAny", $"%{keyword}%"));

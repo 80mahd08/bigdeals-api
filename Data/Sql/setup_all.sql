@@ -78,6 +78,7 @@ IF OBJECT_ID('dbo.DemandesAnnonceur', 'U') IS NOT NULL
     ALTER TABLE dbo.DemandesAnnonceur DROP CONSTRAINT IF EXISTS FK_DemandesAnnonceur_Utilisateurs, FK_DemandesAnnonceur_Admins;
 
 -- Drop tables in order of dependency
+DROP TABLE IF EXISTS dbo.SignalementsUtilisateurs;
 DROP TABLE IF EXISTS dbo.Signalements;
 DROP TABLE IF EXISTS dbo.PaiementsCommandes;
 DROP TABLE IF EXISTS dbo.Commandes;
@@ -398,6 +399,26 @@ CREATE TABLE [dbo].[Signalements] (
     CONSTRAINT [CHK_Signalements_TypeSignalement] CHECK ([TypeSignalement] IN (1, 2, 3, 4)),
     CONSTRAINT [CHK_Signalements_Statut] CHECK ([Statut] IN (1, 2, 3)),
     CONSTRAINT [UQ_Signalements_Annonce_Utilisateur] UNIQUE ([IdAnnonce], [IdUtilisateur])
+);
+GO
+
+-- 17b. Signalements Utilisateurs
+CREATE TABLE [dbo].[SignalementsUtilisateurs] (
+    [IdSignalement] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    [IdUtilisateurSignale] BIGINT NOT NULL,
+    [IdUtilisateurReporter] BIGINT NOT NULL,
+    [TypeSignalement] INT NOT NULL,
+    [Motif] NVARCHAR(1000) NOT NULL,
+    [Statut] INT NOT NULL DEFAULT 1,
+    [DateCreation] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    [DateTraitement] DATETIME2 NULL,
+    [IdAdminTraitant] BIGINT NULL,
+    CONSTRAINT [FK_SignalementsUtilisateurs_Signale] FOREIGN KEY ([IdUtilisateurSignale]) REFERENCES [dbo].[Utilisateurs]([IdUtilisateur]),
+    CONSTRAINT [FK_SignalementsUtilisateurs_Reporter] FOREIGN KEY ([IdUtilisateurReporter]) REFERENCES [dbo].[Utilisateurs]([IdUtilisateur]),
+    CONSTRAINT [FK_SignalementsUtilisateurs_Admins] FOREIGN KEY ([IdAdminTraitant]) REFERENCES [dbo].[Utilisateurs]([IdUtilisateur]),
+    CONSTRAINT [CHK_SignalementsUtilisateurs_Type] CHECK ([TypeSignalement] IN (1, 2, 3, 4)),
+    CONSTRAINT [CHK_SignalementsUtilisateurs_Statut] CHECK ([Statut] IN (1, 2, 3)),
+    CONSTRAINT [UQ_SignalementsUtilisateurs_Signale_Reporter] UNIQUE ([IdUtilisateurSignale], [IdUtilisateurReporter])
 );
 GO
 
@@ -984,3 +1005,50 @@ GO
 -- ============================================================================
 PRINT 'BigDeals Db setup completed successfully with 0 errors.';
 GO
+
+-- ============================================================================
+-- RENAME CATEGORY DISPLAY NAMES
+-- ============================================================================
+PRINT 'Renaming category display names...';
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    UPDATE dbo.Categories
+    SET Nom = CASE Nom
+        WHEN N'Véhicules' THEN N'Auto, Moto & Véhicules'
+        WHEN N'Immobilier' THEN N'Immobilier & Locations'
+        WHEN N'Téléphones' THEN N'Téléphones & Accessoires'
+        WHEN N'Informatique' THEN N'Informatique & High-Tech'
+        WHEN N'Mode' THEN N'Mode & Accessoires'
+        WHEN N'Beauté' THEN N'Beauté & Cosmétiques'
+        WHEN N'Maison' THEN N'Maison & Électroménager'
+        WHEN N'Jardin' THEN N'Jardin & Extérieur'
+        WHEN N'Services' THEN N'Services & Prestations'
+        WHEN N'Emploi' THEN N'Offres d’emploi'
+        ELSE Nom
+    END
+    WHERE Nom IN (
+        N'Vehicules',
+        N'Véhicules',
+        N'Immobilier',
+        N'Téléphones',
+        N'Informatique',
+        N'Mode',
+        N'Beauté',
+        N'Maison',
+        N'Jardin',
+        N'Services',
+        N'Emploi'
+    );
+
+    COMMIT TRANSACTION;
+
+    PRINT 'Category display names renamed successfully.';
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+
+    THROW;
+END CATCH;

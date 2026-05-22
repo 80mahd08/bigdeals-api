@@ -33,8 +33,7 @@ public class AdminUserRepository : IAdminUserRepository
                  u.Nom LIKE @Search OR
                  u.Prenom LIKE @Search OR
                  u.Email LIKE @Search OR
-                 u.Telephone LIKE @Search OR
-                 u.Ville LIKE @Search)
+                 u.Telephone LIKE @Search)
             AND (@StatutCompte IS NULL OR u.StatutCompte = @StatutCompte)
             AND (@Role IS NULL OR u.Role = @Role)
             AND (@Ville IS NULL OR u.Ville = @Ville)";

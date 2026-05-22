@@ -85,7 +85,7 @@ public class SignalementRepository : ISignalementRepository
         return result != null && result != DBNull.Value ? Convert.ToInt64(result) : 0;
     }
 
-    public async Task<PagedResponse<SignalementDto>> GetPagedAdminAsync(int pageNumber, int pageSize, int? statut, string? search)
+    public async Task<PagedResponse<SignalementDto>> GetPagedAdminAsync(int pageNumber, int pageSize, int? statut, string? search, string? sortByDate = null, int? type = null)
     {
         using var connection = (SqlConnection)_connectionFactory.CreateConnection();
         await connection.OpenAsync();
@@ -97,6 +97,12 @@ public class SignalementRepository : ISignalementRepository
         {
             whereClause += " AND s.Statut = @Statut";
             parameters.Add(new SqlParameter("@Statut", statut.Value));
+        }
+
+        if (type.HasValue)
+        {
+            whereClause += " AND s.TypeSignalement = @TypeSignalement";
+            parameters.Add(new SqlParameter("@TypeSignalement", type.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -116,6 +122,15 @@ public class SignalementRepository : ISignalementRepository
         foreach (var p in parameters) countCommand.Parameters.Add(new SqlParameter(p.ParameterName, p.Value));
         int totalCount = Convert.ToInt32(await countCommand.ExecuteScalarAsync());
 
+        string orderBy = "s.DateCreation DESC";
+        if (!string.IsNullOrWhiteSpace(sortByDate))
+        {
+            if (sortByDate.ToLower() == "asc")
+                orderBy = "s.DateCreation ASC";
+            else if (sortByDate.ToLower() == "desc")
+                orderBy = "s.DateCreation DESC";
+        }
+
         string dataSql = $@"
             SELECT s.*, 
                    a.Titre as TitreAnnonce, a.Description as DescriptionAnnonce, 
@@ -128,7 +143,7 @@ public class SignalementRepository : ISignalementRepository
             JOIN Utilisateurs u ON u.IdUtilisateur = s.IdUtilisateur
             JOIN Utilisateurs ua ON ua.IdUtilisateur = a.IdUtilisateur
             {whereClause}
-            ORDER BY s.DateCreation DESC
+            ORDER BY {orderBy}
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
         using var dataCommand = new SqlCommand(dataSql, connection);

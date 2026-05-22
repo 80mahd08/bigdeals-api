@@ -9,6 +9,7 @@ public class AdminDashboardStatsDto
     public decimal TotalRevenue { get; set; } // Mocked for now as we don't have payments yet
     public int PendingAnnouncerRequests { get; set; }
     public int FlaggedAds { get; set; }
+    public int FlaggedUsers { get; set; }
     
     public List<StatTrendDto> Stats { get; set; } = new();
     public List<RecentActivityDto> RecentActivities { get; set; } = new();

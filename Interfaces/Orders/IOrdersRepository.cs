@@ -16,4 +16,5 @@ public interface IOrdersRepository
     Task<bool> UpdateOrderStatusAsync(long orderId, int status);
     Task<bool> UpdateDeliveryStatusAsync(long orderId, int statutLivraison, string? notes, DateTime? dateExpedition, DateTime? dateLivraison);
     Task<bool> CancelOrderAndRefundAsync(long orderId);
+    Task<bool> HasPurchasedProductAsync(long userId, long annonceId);
 }

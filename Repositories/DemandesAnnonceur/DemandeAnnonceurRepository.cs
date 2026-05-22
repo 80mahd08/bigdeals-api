@@ -105,8 +105,7 @@ public class DemandeAnnonceurRepository : IDemandeAnnonceurRepository
         if (statut.HasValue) whereClause += " AND d.Statut = @Statut ";
         if (!string.IsNullOrWhiteSpace(search)) 
         {
-            var cleanSearch = search.TrimStart('#');
-            whereClause += " AND (u.Nom LIKE @Search OR u.Prenom LIKE @Search OR u.Email LIKE @Search OR CAST(d.IdDemandeAnnonceur AS VARCHAR) LIKE @CleanSearch) ";
+            whereClause += " AND (u.Nom LIKE @Search OR u.Prenom LIKE @Search OR u.Email LIKE @Search) ";
         }
 
         string orderByClause = "d.DateDemande DESC"; // Default
@@ -135,7 +134,6 @@ public class DemandeAnnonceurRepository : IDemandeAnnonceurRepository
         if (!string.IsNullOrWhiteSpace(search)) 
         {
             command.Parameters.AddWithValue("@Search", $"%{search}%");
-            command.Parameters.AddWithValue("@CleanSearch", $"%{search.TrimStart('#')}%");
         }
         command.Parameters.AddWithValue("@Offset", (pageNumber - 1) * pageSize);
         command.Parameters.AddWithValue("@PageSize", pageSize);
@@ -158,8 +156,7 @@ public class DemandeAnnonceurRepository : IDemandeAnnonceurRepository
         if (statut.HasValue) whereClause += " AND d.Statut = @Statut ";
         if (!string.IsNullOrWhiteSpace(search)) 
         {
-            var cleanSearch = search.TrimStart('#');
-            whereClause += " AND (u.Nom LIKE @Search OR u.Prenom LIKE @Search OR u.Email LIKE @Search OR CAST(d.IdDemandeAnnonceur AS VARCHAR) LIKE @CleanSearch) ";
+            whereClause += " AND (u.Nom LIKE @Search OR u.Prenom LIKE @Search OR u.Email LIKE @Search) ";
         }
 
         var query = $"SELECT COUNT(1) FROM DemandesAnnonceur d JOIN Utilisateurs u ON d.IdUtilisateur = u.IdUtilisateur {whereClause}";
@@ -169,7 +166,6 @@ public class DemandeAnnonceurRepository : IDemandeAnnonceurRepository
         if (!string.IsNullOrWhiteSpace(search)) 
         {
             command.Parameters.AddWithValue("@Search", $"%{search}%");
-            command.Parameters.AddWithValue("@CleanSearch", $"%{search.TrimStart('#')}%");
         }
 
         await ((SqlConnection)connection).OpenAsync();

@@ -64,13 +64,20 @@ public class AdminDashboardService : IAdminDashboardService
             stats.FlaggedAds = result != null ? Convert.ToInt32(result) : 0;
         }
 
+        // 6. Flagged Users (Pending SignalementsUtilisateurs)
+        using (var cmd = new SqlCommand("SELECT COUNT(*) FROM SignalementsUtilisateurs WHERE Statut = 1", connection))
+        {
+            var result = await cmd.ExecuteScalarAsync();
+            stats.FlaggedUsers = result != null ? Convert.ToInt32(result) : 0;
+        }
+
         // Populate Stats list for the UI
         stats.Stats = new List<StatTrendDto>
         {
             new StatTrendDto { Label = "Utilisateurs", Value = stats.TotalUsers.ToString("N0"), Icon = "ri-user-line", Color = "primary" },
             new StatTrendDto { Label = "Annonces", Value = stats.TotalAds.ToString("N0"), Icon = "ri-stack-line", Color = "success" },
             new StatTrendDto { Label = "Revenus Plateforme", Value = totalRevenue.ToString("N0") + " DT", Icon = "ri-money-dollar-circle-line", Color = "info" },
-            new StatTrendDto { Label = "Signalements", Value = stats.FlaggedAds.ToString(), Icon = "ri-flag-line", Color = "danger" }
+            new StatTrendDto { Label = "Signalements", Value = (stats.FlaggedAds + stats.FlaggedUsers).ToString(), Icon = "ri-flag-line", Color = "danger" }
         };
 
         // Recent Activities (Mocked for now or could pull from a log table if exists)
@@ -180,17 +187,31 @@ public class AdminDashboardService : IAdminDashboardService
         {
             if (isMonthly)
             {
-                sql = @"SELECT YEAR(DateCreation) as Y, MONTH(DateCreation) as M, COUNT(*) as V
-                        FROM Signalements
-                        WHERE DateCreation >= @StartDate
-                        GROUP BY YEAR(DateCreation), MONTH(DateCreation)";
+                sql = @"SELECT Y, M, SUM(V) as V FROM (
+                            SELECT YEAR(DateCreation) as Y, MONTH(DateCreation) as M, COUNT(*) as V
+                            FROM Signalements
+                            WHERE DateCreation >= @StartDate
+                            GROUP BY YEAR(DateCreation), MONTH(DateCreation)
+                            UNION ALL
+                            SELECT YEAR(DateCreation) as Y, MONTH(DateCreation) as M, COUNT(*) as V
+                            FROM SignalementsUtilisateurs
+                            WHERE DateCreation >= @StartDate
+                            GROUP BY YEAR(DateCreation), MONTH(DateCreation)
+                        ) combined GROUP BY Y, M";
             }
             else
             {
-                sql = @"SELECT CAST(DateCreation AS DATE) as D, COUNT(*) as V
-                        FROM Signalements
-                        WHERE DateCreation >= @StartDate
-                        GROUP BY CAST(DateCreation AS DATE)";
+                sql = @"SELECT D, SUM(V) as V FROM (
+                            SELECT CAST(DateCreation AS DATE) as D, COUNT(*) as V
+                            FROM Signalements
+                            WHERE DateCreation >= @StartDate
+                            GROUP BY CAST(DateCreation AS DATE)
+                            UNION ALL
+                            SELECT CAST(DateCreation AS DATE) as D, COUNT(*) as V
+                            FROM SignalementsUtilisateurs
+                            WHERE DateCreation >= @StartDate
+                            GROUP BY CAST(DateCreation AS DATE)
+                        ) combined GROUP BY D";
             }
         }
 

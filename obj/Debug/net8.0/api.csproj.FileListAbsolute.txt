@@ -1,7 +1,6 @@
 e:/my work/api/bin/Debug/net8.0/appsettings.Development.json
 e:/my work/api/bin/Debug/net8.0/appsettings.json
 e:/my work/api/bin/Debug/net8.0/frontend/angular.json
-e:/my work/api/bin/Debug/net8.0/frontend/dist/velzon/prerendered-routes.json
 e:/my work/api/bin/Debug/net8.0/frontend/package-lock.json
 e:/my work/api/bin/Debug/net8.0/frontend/package.json
 e:/my work/api/bin/Debug/net8.0/frontend/tsconfig.app.json
@@ -203,7 +202,6 @@ e:/my work/api/obj/Debug/net8.0/ref/api.dll
 E:\my work\api\bin\Debug\net8.0\appsettings.Development.json
 E:\my work\api\bin\Debug\net8.0\appsettings.json
 E:\my work\api\bin\Debug\net8.0\frontend\angular.json
-E:\my work\api\bin\Debug\net8.0\frontend\dist\velzon\prerendered-routes.json
 E:\my work\api\bin\Debug\net8.0\frontend\package.json
 E:\my work\api\bin\Debug\net8.0\frontend\tsconfig.app.json
 E:\my work\api\bin\Debug\net8.0\frontend\tsconfig.json
@@ -302,3 +300,4 @@ E:\my work\api\obj\Debug\net8.0\api.pdb
 E:\my work\api\obj\Debug\net8.0\api.genruntimeconfig.cache
 E:\my work\api\obj\Debug\net8.0\ref\api.dll
 E:\my work\api\bin\Debug\net8.0\appsettings-linux.json
+E:\my work\api\bin\Debug\net8.0\frontend\dist\velzon\prerendered-routes.json

@@ -65,6 +65,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IDemandeAnnonceurRepository, DemandeAnnonceurRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
+        services.AddScoped<ISignalementRepository, SignalementRepository>();
+        services.AddScoped<ISignalementUtilisateurRepository, SignalementUtilisateurRepository>();
         services.AddScoped<IAnnonceRepository, AnnonceRepository>();
         services.AddScoped<IFavoriteRepository, FavoriteRepository>();
         services.AddScoped<IContactRepository, ContactRepository>();
@@ -74,12 +76,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICheckoutRepository, CheckoutRepository>();
         services.AddScoped<IProductPaymentRepository, ProductPaymentRepository>();
         services.AddScoped<IOrdersRepository, OrdersRepository>();
-        services.AddScoped<ISignalementRepository, SignalementRepository>();
-
         // Services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IDemandeAnnonceurService, DemandeAnnonceurService>();
+        services.AddScoped<ISignalementService, SignalementService>();
+        services.AddScoped<ISignalementUtilisateurService, SignalementUtilisateurService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IAnnonceService, AnnonceService>();
         services.AddScoped<ILocalFileStorageService, LocalFileStorageService>();
@@ -92,8 +94,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAnnonceurPaymentService, AnnonceurPaymentService>();
         services.AddScoped<IProductPaymentService, ProductPaymentService>();
         services.AddScoped<IOrdersService, OrdersService>();
-        services.AddScoped<ISignalementService, SignalementService>();
-
         // External Services
         services.AddHttpClient<IFlouciAnnonceurPaymentService, FlouciAnnonceurPaymentService>();
 

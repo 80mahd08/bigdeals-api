@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using api.Dtos.Annonces;
 using api.Exceptions;
 using api.Interfaces.Annonces;
+using api.Interfaces.Orders;
 using api.Models;
 using api.Common;
 
@@ -14,11 +15,16 @@ public class AvisService : IAvisService
 {
     private readonly IAvisRepository _avisRepository;
     private readonly IAnnonceRepository _annonceRepository;
+    private readonly IOrdersRepository _ordersRepository;
 
-    public AvisService(IAvisRepository avisRepository, IAnnonceRepository annonceRepository)
+    public AvisService(
+        IAvisRepository avisRepository,
+        IAnnonceRepository annonceRepository,
+        IOrdersRepository ordersRepository)
     {
         _avisRepository = avisRepository;
         _annonceRepository = annonceRepository;
+        _ordersRepository = ordersRepository;
     }
 
     public async Task<IEnumerable<AvisDto>> GetByAnnonceIdAsync(long idAnnonce)
@@ -54,6 +60,10 @@ public class AvisService : IAvisService
 
         if (annonce.IdUtilisateur == idUtilisateur)
             throw new ForbiddenException("Vous ne pouvez pas publier un avis sur votre propre annonce.");
+
+        var hasPurchased = await _ordersRepository.HasPurchasedProductAsync(idUtilisateur, idAnnonce);
+        if (!hasPurchased)
+            throw new ForbiddenException("Vous devez acheter ce produit et attendre sa remise au livreur avant de pouvoir publier un avis.");
 
         var existingAvis = await _avisRepository.GetByUserAndAnnonceAsync(idUtilisateur, idAnnonce);
         if (existingAvis != null)

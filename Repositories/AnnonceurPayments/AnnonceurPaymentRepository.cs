@@ -181,10 +181,7 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
             (@Search IS NULL OR 
              u.Nom LIKE @Search OR 
              u.Prenom LIKE @Search OR 
-             u.Email LIKE @Search OR 
-             p.DeveloperTrackingId LIKE @Search OR 
-             p.ProviderPaymentId LIKE @Search OR
-             p.IdPaiementAnnonceur = TRY_CAST(@RawSearch AS BIGINT))
+             u.Email LIKE @Search)
             AND (@Provider IS NULL OR p.Provider = @Provider)
             AND (@StatutPaiement IS NULL OR p.StatutPaiement = @StatutPaiement)";
 
@@ -210,7 +207,6 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
         using (var countCmd = new SqlCommand(countSql, (SqlConnection)connection))
         {
             countCmd.Parameters.AddWithValue("@Search", (object?)searchLike ?? DBNull.Value);
-            countCmd.Parameters.AddWithValue("@RawSearch", (object?)search ?? DBNull.Value);
             countCmd.Parameters.AddWithValue("@Provider", (object?)provider ?? DBNull.Value);
             countCmd.Parameters.AddWithValue("@StatutPaiement", (object?)statutPaiement ?? DBNull.Value);
             totalItems = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
@@ -231,7 +227,6 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
         using (var command = new SqlCommand(sql, (SqlConnection)connection))
         {
             command.Parameters.AddWithValue("@Search", (object?)searchLike ?? DBNull.Value);
-            command.Parameters.AddWithValue("@RawSearch", (object?)search ?? DBNull.Value);
             command.Parameters.AddWithValue("@Provider", (object?)provider ?? DBNull.Value);
             command.Parameters.AddWithValue("@StatutPaiement", (object?)statutPaiement ?? DBNull.Value);
             command.Parameters.AddWithValue("@Offset", offset);
@@ -261,7 +256,7 @@ public class AnnonceurPaymentRepository : IAnnonceurPaymentRepository
             }
         }
 
-        return new PagedResponse<AnnonceurPaymentDto>(list, pageNumber, pageSize, totalItems);
+        return new PagedResponse<AnnonceurPaymentDto>(list, totalItems, pageNumber, pageSize);
     }
 
     public async Task UpdateProviderInfoAsync(long annonceurPaymentId, string? providerPaymentId, string? paymentUrl, string? rawResponseJson)

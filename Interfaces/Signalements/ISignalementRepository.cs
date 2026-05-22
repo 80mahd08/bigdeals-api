@@ -12,7 +12,7 @@ public interface ISignalementRepository
     Task<bool> HasUserAlreadyReportedAsync(long idAnnonce, long idUtilisateur);
     Task<int?> GetAnnonceStatusAsync(long idAnnonce);
     Task<long> CreateAsync(Signalement signalement);
-    Task<PagedResponse<SignalementDto>> GetPagedAdminAsync(int pageNumber, int pageSize, int? statut, string? search);
+    Task<PagedResponse<SignalementDto>> GetPagedAdminAsync(int pageNumber, int pageSize, int? statut, string? search, string? sortByDate = null, int? type = null);
     Task<bool> ExistsAsync(long idSignalement);
     Task UpdateStatusAsync(long idSignalement, int statut, long adminId);
     Task<long?> GetAnnonceIdAsync(long idSignalement);

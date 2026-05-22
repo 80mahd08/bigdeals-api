@@ -54,9 +54,9 @@ public class AnnonceService : IAnnonceService
         var announcer = await _userRepository.GetByIdAsync(currentUserId);
         if (announcer == null) throw new NotFoundException("User not found.");
         
-        if (string.IsNullOrWhiteSpace(announcer.Telephone) || string.IsNullOrWhiteSpace(announcer.Adresse))
+        if (string.IsNullOrWhiteSpace(announcer.Telephone) || string.IsNullOrWhiteSpace(announcer.Adresse) || string.IsNullOrWhiteSpace(announcer.Ville))
         {
-            throw new BadRequestException("Vous devez renseigner votre numéro de téléphone et votre adresse dans votre profil avant de pouvoir publier une annonce.");
+            throw new BadRequestException("Vous devez renseigner votre numéro de téléphone, votre adresse et votre ville dans votre profil avant de pouvoir publier une annonce.");
         }
 
         // 3. Deserialize and Validate Dynamic Attributes
@@ -174,9 +174,9 @@ public class AnnonceService : IAnnonceService
         var announcer = await _userRepository.GetByIdAsync(currentUserId);
         if (announcer == null) throw new NotFoundException("User not found.");
 
-        if (string.IsNullOrWhiteSpace(announcer.Telephone) || string.IsNullOrWhiteSpace(announcer.Adresse))
+        if (string.IsNullOrWhiteSpace(announcer.Telephone) || string.IsNullOrWhiteSpace(announcer.Adresse) || string.IsNullOrWhiteSpace(announcer.Ville))
         {
-            throw new BadRequestException("Vous devez renseigner votre numéro de téléphone et votre adresse dans votre profil avant de pouvoir modifier une annonce.");
+            throw new BadRequestException("Vous devez renseigner votre numéro de téléphone, votre adresse et votre ville dans votre profil avant de pouvoir modifier une annonce.");
         }
 
         // 1. Parse and Validate Dynamic Attributes
@@ -380,9 +380,9 @@ public class AnnonceService : IAnnonceService
         return await MapToPagedDto(items, total, pageNumber, pageSize);
     }
 
-    public async Task<PagedResponse<AnnonceDto>> GetUserAnnoncesAsync(long userId, int pageNumber, int pageSize, string? keyword = null)
+    public async Task<PagedResponse<AnnonceDto>> GetUserAnnoncesAsync(long userId, int pageNumber, int pageSize, string? keyword = null, StatutAnnonce? statut = null, string? sortBy = null, string? sortDirection = null)
     {
-        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, null, null, userId, keyword);
+        var (items, total) = await _annonceRepository.GetPagedAsync(pageNumber, pageSize, statut, null, userId, keyword, null, null, sortBy, sortDirection);
         return await MapToPagedDto(items, total, pageNumber, pageSize);
     }
 

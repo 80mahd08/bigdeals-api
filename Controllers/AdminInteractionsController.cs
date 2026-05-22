@@ -35,9 +35,11 @@ public class AdminInteractionsController : ControllerBase
         [FromQuery] int pageNumber = 1, 
         [FromQuery] int pageSize = 10, 
         [FromQuery] int? statut = null, 
-        [FromQuery] string? search = null)
+        [FromQuery] string? search = null,
+        [FromQuery] string? sortByDate = null,
+        [FromQuery] int? type = null)
     {
-        var result = await _signalementService.GetPagedAdminAsync(pageNumber, pageSize, statut, search);
+        var result = await _signalementService.GetPagedAdminAsync(pageNumber, pageSize, statut, search, sortByDate, type);
         return Ok(ApiResponse<PagedResponse<SignalementDto>>.Ok(result));
     }
 

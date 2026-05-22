@@ -58,7 +58,9 @@ public class UserRepository : IUserRepository
                 Telephone = @Telephone, 
                 Adresse = @Adresse, 
                 Ville = @Ville,
-                PhotoProfilUrl = @PhotoProfilUrl
+                PhotoProfilUrl = @PhotoProfilUrl,
+                Role = @Role,
+                StatutCompte = @StatutCompte
             WHERE IdUtilisateur = @IdUtilisateur", 
             (SqlConnection)connection);
 
@@ -68,6 +70,8 @@ public class UserRepository : IUserRepository
         command.Parameters.AddWithValue("@Adresse", (object?)user.Adresse ?? DBNull.Value);
         command.Parameters.AddWithValue("@Ville", (object?)user.Ville ?? DBNull.Value);
         command.Parameters.AddWithValue("@PhotoProfilUrl", (object?)user.PhotoProfilUrl ?? DBNull.Value);
+        command.Parameters.AddWithValue("@Role", (int)user.Role);
+        command.Parameters.AddWithValue("@StatutCompte", (int)user.StatutCompte);
         command.Parameters.AddWithValue("@IdUtilisateur", user.IdUtilisateur);
 
         await ((SqlConnection)connection).OpenAsync();

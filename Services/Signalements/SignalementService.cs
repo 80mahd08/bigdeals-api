@@ -87,13 +87,13 @@ public class SignalementService : ISignalementService
         };
     }
 
-    public async Task<PagedResponse<SignalementDto>> GetPagedAdminAsync(int pageNumber, int pageSize, int? statut, string? search)
+    public async Task<PagedResponse<SignalementDto>> GetPagedAdminAsync(int pageNumber, int pageSize, int? statut, string? search, string? sortByDate = null, int? type = null)
     {
         if (pageNumber < 1) pageNumber = 1;
         if (pageSize < 1) pageSize = 10;
         if (pageSize > 50) pageSize = 50;
 
-        return await _signalementRepository.GetPagedAdminAsync(pageNumber, pageSize, statut, search);
+        return await _signalementRepository.GetPagedAdminAsync(pageNumber, pageSize, statut, search, sortByDate, type);
     }
 
     public async Task UpdateStatusAsync(long idSignalement, UpdateSignalementStatusDto dto, long adminId)

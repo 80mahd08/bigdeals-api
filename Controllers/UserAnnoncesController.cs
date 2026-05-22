@@ -23,10 +23,16 @@ public class UserAnnoncesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetMyAnnonces([FromQuery] string? keyword, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 12)
+    public async Task<ActionResult<ApiResponse<PagedResponse<AnnonceDto>>>> GetMyAnnonces(
+        [FromQuery] string? keyword, 
+        [FromQuery] int pageNumber = 1, 
+        [FromQuery] int pageSize = 12,
+        [FromQuery] api.Models.Enums.StatutAnnonce? statut = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDirection = null)
     {
         var currentUserId = _currentUserService.GetUserId();
-        var result = await _service.GetUserAnnoncesAsync(currentUserId, pageNumber, pageSize, keyword);
+        var result = await _service.GetUserAnnoncesAsync(currentUserId, pageNumber, pageSize, keyword, statut, sortBy, sortDirection);
         return Ok(ApiResponse<PagedResponse<AnnonceDto>>.Ok(result));
     }
 
